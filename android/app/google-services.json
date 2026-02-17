@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "843401690554",
+    "project_id": "spark-asha",
+    "storage_bucket": "spark-asha.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:843401690554:android:8cefe74a8665af8bc4f183",
+        "android_client_info": {
+          "package_name": "com.sparkapp.spark"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBc-_3lBKiVxKu03YLv-s7gZdW7ux7xqUQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
