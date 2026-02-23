@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:geolocator/geolocator.dart'; // Distance ke liye zaroori hai
 import '../../../../core/network/api_service.dart';
 
 class UserProfileModal extends StatefulWidget {
@@ -13,6 +15,7 @@ class _UserProfileModalState extends State<UserProfileModal> {
   final ApiService _apiService = ApiService();
   Map<String, dynamic>? userData;
   bool isLoading = true;
+  String distanceStr = "Checking location...";
 
   @override
   void initState() {
@@ -28,6 +31,7 @@ class _UserProfileModalState extends State<UserProfileModal> {
           userData = response.data;
           isLoading = false;
         });
+        _calculateDistance();
       } else {
         setState(() => isLoading = false);
       }
@@ -37,38 +41,76 @@ class _UserProfileModalState extends State<UserProfileModal> {
     }
   }
 
-  // --- Image Popup Viewer Logic (FIXED OVERFLOW) ---
+  // --- Distance Logic ---
+  Future<void> _calculateDistance() async {
+    if (userData == null) return;
+    try {
+      // User ki current position lo
+      Position myPos = await Geolocator.getCurrentPosition();
+
+      // API se aaye hue user ke lat/lon
+      double userLat = userData!['latitude'] ?? 0.0;
+      double userLon = userData!['longitude'] ?? 0.0;
+
+      if (userLat != 0.0) {
+        double distanceInMeters = Geolocator.distanceBetween(
+            myPos.latitude, myPos.longitude, userLat, userLon
+        );
+
+        double distanceInKm = distanceInMeters / 1000;
+        setState(() {
+          distanceStr = "${distanceInKm.toStringAsFixed(1)} km away from last updates";
+        });
+      } else {
+        setState(() => distanceStr = "Location hidden");
+      }
+    } catch (e) {
+      setState(() => distanceStr = "Nearby somewhere");
+    }
+  }
+
+  void _launchInstagram(String handle) async {
+    final Uri url = Uri.parse("https://www.instagram.com/$handle/");
+    if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
+      debugPrint("Could not launch $url");
+    }
+  }
+
   void _showImagePopup(String imageUrl) {
-    showDialog(
+    showGeneralDialog(
       context: context,
       barrierDismissible: true,
-      builder: (context) => Dialog(
-        backgroundColor: Colors.transparent,
-        insetPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 20),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center, // Center mein rakhega
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Align(
-              alignment: Alignment.topRight,
-              child: IconButton(
-                icon: const Icon(Icons.close, color: Colors.white, size: 30),
-                onPressed: () => Navigator.pop(context),
+      barrierLabel: "Close",
+      barrierColor: Colors.black.withOpacity(0.9),
+      pageBuilder: (context, anim1, anim2) {
+        return Material(
+          type: MaterialType.transparency,
+          child: Stack(
+            children: [
+              GestureDetector(
+                onTap: () => Navigator.pop(context),
+                child: Container(color: Colors.transparent),
               ),
-            ),
-            // Flexible taaki image screen size ke hisab se adjust ho jaye overflow na kare
-            Flexible(
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(15),
-                child: Image.network(
-                  imageUrl,
-                  fit: BoxFit.contain,
+              Center(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(20),
+                    child: Image.network(imageUrl, fit: BoxFit.contain),
+                  ),
                 ),
               ),
-            ),
-          ],
-        ),
-      ),
+              Positioned(
+                top: 40, right: 20,
+                child: IconButton(
+                  icon: const Icon(Icons.close, color: Colors.white, size: 30),
+                  onPressed: () => Navigator.pop(context),
+                ),
+              )
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -87,167 +129,218 @@ class _UserProfileModalState extends State<UserProfileModal> {
       );
     }
 
-    if (userData == null) {
+    if (userData == null || userData!['showProfile'] == false) {
       return Container(
-        height: 250,
+        height: 300,
+        width: double.infinity,
         decoration: const BoxDecoration(color: bgBlack, borderRadius: BorderRadius.vertical(top: Radius.circular(25))),
-        child: const Center(child: Text("User not found!", style: TextStyle(color: Colors.white))),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.lock_outline, color: accentColor.withOpacity(0.5), size: 50),
+            const SizedBox(height: 15),
+            const Text("Profile is Private", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+          ],
+        ),
       );
     }
 
     List<dynamic> photos = userData!['profileImages'] ?? [];
     String avatarUrl = photos.isNotEmpty ? photos[0] : 'https://via.placeholder.com/150';
     String? instaHandle = userData!['instaHandle'];
+    String? bio = userData!['bio'];
 
     return Container(
-      height: MediaQuery.of(context).size.height * 0.88,
+      height: MediaQuery.of(context).size.height * 0.92,
       decoration: const BoxDecoration(
         color: bgBlack,
         borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
       ),
-      child: Stack(
+      child: Column(
         children: [
-          Positioned(
-            top: -50, right: -50,
-            child: CircleAvatar(radius: 100, backgroundColor: accentColor.withOpacity(0.05)),
-          ),
-          Column(
-            children: [
-              const SizedBox(height: 12),
-              Container(width: 45, height: 5, decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(10))),
-              Expanded(
-                child: SingleChildScrollView(
-                  physics: const BouncingScrollPhysics(),
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 25),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+          const SizedBox(height: 12),
+          Container(width: 45, height: 5, decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(10))),
+          Expanded(
+            child: SingleChildScrollView(
+              physics: const BouncingScrollPhysics(),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // --- Header Section ---
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      // --- Header Section ---
-                      Row(
-                        children: [
-                          GestureDetector(
-                            onTap: () => _showImagePopup(avatarUrl),
-                            child: CircleAvatar(
-                              radius: 45,
-                              backgroundColor: cardBg,
-                              backgroundImage: NetworkImage(avatarUrl),
+                      GestureDetector(
+                        onTap: () => _showImagePopup(avatarUrl),
+                        child: CircleAvatar(
+                          radius: 48,
+                          backgroundColor: cardBg,
+                          backgroundImage: NetworkImage(avatarUrl),
+                        ),
+                      ),
+                      const SizedBox(width: 25),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              userData!['fullName'] ?? "Stranger",
+                              style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w900, // GenZ Bold Look
+                                  letterSpacing: -0.5
+                              ),
                             ),
-                          ),
-                          const SizedBox(width: 20),
-                          Expanded(
+                            const SizedBox(height: 4),
+                            Text(
+                              (userData!['gender'] ?? "Spark User").toString().toUpperCase(),
+                              style: const TextStyle(color: accentColor, fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 1.2),
+                            ),
+
+                            const SizedBox(height: 8),
+                            // --- Distance Message ---
+                            Row(
+                              children: [
+                                const Icon(Icons.location_on, color: Colors.white38, size: 12),
+                                const SizedBox(width: 4),
+                                Text(
+                                  distanceStr,
+                                  style: const TextStyle(color: Colors.white38, fontSize: 11, fontWeight: FontWeight.w500),
+                                ),
+                              ],
+                            ),
+
+                            // const SizedBox(height: 12),
+                            // // Message Button
+                            // GestureDetector(
+                            //   onTap: () => ScaffoldMessenger.of(context).showSnackBar(
+                            //     const SnackBar(content: Text("Direct message feature is coming soon! ⚡", style: TextStyle(color: Colors.white)), backgroundColor: cardBg),
+                            //   ),
+                            //   child: Container(
+                            //     padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                            //     decoration: BoxDecoration(
+                            //         color: accentColor,
+                            //         borderRadius: BorderRadius.circular(12),
+                            //         boxShadow: [BoxShadow(color: accentColor.withOpacity(0.2), blurRadius: 10)]
+                            //     ),
+                            //     child: const Row(
+                            //       mainAxisSize: MainAxisSize.min,
+                            //       children: [
+                            //         Icon(Icons.chat_bubble_rounded, color: Colors.black, size: 16),
+                            //         SizedBox(width: 8),
+                            //         Text("Say Hi!", style: TextStyle(color: Colors.black, fontWeight: FontWeight.w900, fontSize: 13)),
+                            //       ],
+                            //     ),
+                            //   ),
+                            // ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 25),
+
+                  // --- Bio Section ---
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text("THE BIO", style: TextStyle(color: Colors.white38, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1)),
+                        const SizedBox(height: 6),
+                        Text(
+                          bio != null && bio.isNotEmpty ? bio : "This user is too cool for a bio. Just catch the vibe! ✨",
+                          style: const TextStyle(color: Colors.white, fontSize: 15, height: 1.5, fontWeight: FontWeight.w400),
+                        ),
+                        if (instaHandle != null && instaHandle.isNotEmpty) ...[
+                          const SizedBox(height: 15),
+                          GestureDetector(
+                            onTap: () => _launchInstagram(instaHandle),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(
-                                  userData!['fullName'] ?? "Stranger",
-                                  style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.w900),
+                                Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Image.network('https://upload.wikimedia.org/wikipedia/commons/thumb/a/a5/Instagram_icon.png/600px-Instagram_icon.png', height: 18),
+                                    const SizedBox(width: 8),
+                                    Text(instaHandle, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700)),
+                                  ],
                                 ),
-                                const SizedBox(height: 6),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                  decoration: BoxDecoration(
-                                    color: accentColor.withOpacity(0.1),
-                                    borderRadius: BorderRadius.circular(20),
-                                  ),
-                                  child: Text(
-                                    (userData!['gender'] ?? "Spark User").toString().toUpperCase(),
-                                    style: const TextStyle(color: accentColor, fontSize: 10, fontWeight: FontWeight.bold),
-                                  ),
+                                const SizedBox(height: 4),
+                                const Text(
+                                  "Tap to check their vibe on Instagram ↗",
+                                  style: TextStyle(color: Colors.white24, fontSize: 11, fontWeight: FontWeight.w400),
                                 ),
                               ],
                             ),
                           ),
                         ],
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 30),
+                  const Divider(color: borderColor, thickness: 1),
+                  const SizedBox(height: 20),
+
+                  // --- Photos Grid ---
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        "CAPTURES",
+                        style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w900, letterSpacing: 0.5),
                       ),
-
-                      const SizedBox(height: 30),
-
-                      // --- Bio ---
-                      const Text("BIO", style: TextStyle(color: Colors.white54, fontSize: 12, fontWeight: FontWeight.bold)),
-                      const SizedBox(height: 10),
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: cardBg.withOpacity(0.5),
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: borderColor),
-                        ),
-                        child: Text(
-                          userData!['bio'] ?? "No bio added yet. ✨",
-                          style: const TextStyle(color: Colors.white, fontSize: 15, height: 1.5),
-                        ),
+                      Text(
+                        "${photos.length} Moments",
+                        style: const TextStyle(color: Colors.white38, fontSize: 12),
                       ),
-
-                      const SizedBox(height: 25),
-
-                      // --- Instagram Card ---
-                      if (instaHandle != null && instaHandle.isNotEmpty)
-                        Container(
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: [const Color(0xFF833AB4).withOpacity(0.1), const Color(0xFFFD1D1D).withOpacity(0.1)],
-                            ),
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(color: Colors.white10),
-                          ),
-                          child: Row(
-                            children: [
-                              Image.network('https://upload.wikimedia.org/wikipedia/commons/thumb/a/a5/Instagram_icon.png/600px-Instagram_icon.png', height: 24),
-                              const SizedBox(width: 12),
-                              Text("@$instaHandle", style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
-                              const Spacer(),
-                              const Icon(Icons.arrow_forward_ios, color: Colors.white38, size: 16),
-                            ],
-                          ),
-                        ),
-
-                      const SizedBox(height: 35),
-
-                      // --- Photos Grid (REDUCED SPACING) ---
-                      const Text("MOMENTS", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w900)),
-                      const SizedBox(height: 16),
-
-                      GridView.builder(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        itemCount: photos.length,
-                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 2,
-                          crossAxisSpacing: 6, // Space kam kar diya
-                          mainAxisSpacing: 6,  // Space kam kar diya
-                          childAspectRatio: 0.8,
-                        ),
-                        itemBuilder: (context, index) {
-                          return GestureDetector(
-                            onTap: () => _showImagePopup(photos[index]),
-                            child: Container(
-                              decoration: BoxDecoration(
-                                color: cardBg,
-                                borderRadius: BorderRadius.circular(12), // Thoda kam round takki spacing ke saath sahi lage
-                              ),
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(12),
-                                child: Image.network(
-                                  photos[index],
-                                  fit: BoxFit.cover,
-                                  loadingBuilder: (context, child, progress) {
-                                    if (progress == null) return child;
-                                    return const Center(child: CircularProgressIndicator(strokeWidth: 2));
-                                  },
-                                ),
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                      const SizedBox(height: 50),
                     ],
                   ),
-                ),
+                  const SizedBox(height: 20),
+
+                  GridView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: photos.length,
+                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 2, // 2 images per row as requested 🔥
+                      crossAxisSpacing: 10,
+                      mainAxisSpacing: 10,
+                      childAspectRatio: 0.85,
+                    ),
+                    itemBuilder: (context, index) {
+                      return GestureDetector(
+                        onTap: () => _showImagePopup(photos[index]),
+                        child: Container(
+                          decoration: BoxDecoration(
+                              color: cardBg,
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: borderColor, width: 0.5)
+                          ),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(16),
+                            child: Image.network(
+                              photos[index],
+                              fit: BoxFit.cover,
+                              loadingBuilder: (context, child, progress) {
+                                if (progress == null) return child;
+                                return const Center(child: CircularProgressIndicator(strokeWidth: 2, color: accentColor));
+                              },
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 50),
+                ],
               ),
-            ],
+            ),
           ),
         ],
       ),

@@ -16,7 +16,7 @@ class _CreateSparkModalState extends State<CreateSparkModal> {
   String selectedType = "OTHER";
   int selectedRadius = 100;
   int selectedDuration = 1;
-  String selectedGender = "Everyone"; // Default preference
+  String selectedGender = "EVERYONE"; // Default preference
   bool isLoading = false;
 
   // Theme Colors
@@ -94,17 +94,17 @@ class _CreateSparkModalState extends State<CreateSparkModal> {
   // Custom Gender Data for "Logo" feel
   final List<Map<String, dynamic>> genderData = [
     {
-      "id": "Boys",
+      "id": "MALE",
       "icon": Icons.face_retouching_natural,
       "color": Colors.blueAccent,
     },
     {
-      "id": "Girls",
+      "id": "FEMALE",
       "icon": Icons.face_6,
       "color": Colors.pinkAccent,
     },
     {
-      "id": "Everyone",
+      "id": "EVERYONE",
       "icon": Icons.auto_awesome,
       "color": Colors.purpleAccent,
     },

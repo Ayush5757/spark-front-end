@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:dio/dio.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../../../../core/network/api_service.dart';
 import '../../../home/presentation/pages/chat_room_screen.dart';
 
@@ -12,28 +13,109 @@ class NotificationsScreen extends StatefulWidget {
 
 class _NotificationsScreenState extends State<NotificationsScreen> {
   final ApiService _apiService = ApiService();
+  final ScrollController _scrollController = ScrollController();
+
+  // State Variables
   List<dynamic> notifications = [];
   bool isLoading = true;
+  bool isRefreshing = false;
+  bool isMoreLoading = false;
+  bool hasMore = true;
+  int currentPage = 0;
 
   @override
   void initState() {
     super.initState();
-    _fetchNotifications();
+    _fetchInitialNotifications();
+
+    // ✅ Pagination Listener: Jab user 85% scroll karega, next page fetch hoga
+    _scrollController.addListener(() {
+      if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent * 0.85) {
+        if (!isMoreLoading && hasMore) {
+          _fetchMoreNotifications();
+        }
+      }
+    });
   }
 
-  // --- API: Fetch Notifications ---
-  Future<void> _fetchNotifications() async {
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  // --- API: Fetch Initial Notifications ---
+  Future<void> _fetchInitialNotifications({bool silent = false}) async {
+    if (!mounted) return;
+
+    setState(() {
+      if (!silent) isLoading = true;
+      else isRefreshing = true;
+      currentPage = 0;
+      hasMore = true;
+    });
+
     try {
       final response = await _apiService.dio.get(
         "/api/matches/my-notifications",
+        queryParameters: {"page": 0, "size": 15},
       );
-      setState(() {
-        notifications = response.data;
-        isLoading = false;
-      });
+
+      // Spring Page mapping
+      final responseData = response.data as Map<String, dynamic>;
+      final List fetchedList = responseData['content'] ?? [];
+      final bool isLast = responseData['last'] ?? true;
+
+      if (mounted) {
+        setState(() {
+          notifications = fetchedList;
+          isLoading = false;
+          isRefreshing = false;
+          hasMore = !isLast;
+        });
+      }
     } catch (e) {
-      debugPrint("Notif Error: $e");
-      setState(() => isLoading = false);
+      debugPrint("Notif Initial Fetch Error: $e");
+      if (mounted) {
+        setState(() {
+          isLoading = false;
+          isRefreshing = false;
+        });
+        _showSnackBar("Error", "Data load karne mein issue aaya bhai!");
+      }
+    }
+  }
+
+  // --- API: Fetch More Notifications (Pagination) ---
+  Future<void> _fetchMoreNotifications() async {
+    if (isMoreLoading || !hasMore) return;
+
+    setState(() => isMoreLoading = true);
+    int nextPage = currentPage + 1;
+
+    try {
+      final response = await _apiService.dio.get(
+        "/api/matches/my-notifications",
+        queryParameters: {"page": nextPage, "size": 15},
+      );
+
+      final responseData = response.data as Map<String, dynamic>;
+      final List fetchedList = responseData['content'] ?? [];
+      final bool isLast = responseData['last'] ?? true;
+
+      if (mounted) {
+        setState(() {
+          if (fetchedList.isNotEmpty) {
+            notifications.addAll(fetchedList);
+            currentPage = nextPage;
+          }
+          hasMore = !isLast;
+          isMoreLoading = false;
+        });
+      }
+    } catch (e) {
+      debugPrint("Notif Load More Error: $e");
+      if (mounted) setState(() => isMoreLoading = false);
     }
   }
 
@@ -42,9 +124,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     try {
       await _apiService.dio.post("/api/matches/accept/$matchId");
       _showSuccessDialog("Matched! 🎉", "Ab aap chat kar sakte hain.");
-      _fetchNotifications(); // List refresh karo
+      _fetchInitialNotifications(silent: true);
     } on DioException catch (e) {
-      String errorMsg = e.response?.data?.toString() ?? "Kuch gadbad ho gayi";
+      String errorMsg = e.response?.data?.toString() ?? "Accept nahi ho paya";
       _showSnackBar("Oops!", errorMsg);
     }
   }
@@ -57,35 +139,58 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 20, vertical: 20),
-              child: Text(
-                "Notifications",
-                style: TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.w900,
-                  color: Colors.white,
-                ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    "Notifications",
+                    style: TextStyle(
+                      fontSize: 28,
+                      fontWeight: FontWeight.w900,
+                      color: Colors.white,
+                    ),
+                  ),
+                  if (isRefreshing)
+                    const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Color(0xFF3B82F6),
+                      ),
+                    ),
+                ],
               ),
             ),
             Expanded(
               child: RefreshIndicator(
-                onRefresh: _fetchNotifications,
+                onRefresh: () => _fetchInitialNotifications(silent: true),
                 color: const Color(0xFF3B82F6),
                 backgroundColor: const Color(0xFF1C2128),
                 child: isLoading
-                    ? const Center(
-                  child: CircularProgressIndicator(
-                    color: Color(0xFF3B82F6),
-                  ),
-                )
+                    ? const Center(child: CircularProgressIndicator(color: Color(0xFF3B82F6)))
                     : notifications.isEmpty
                     ? _buildEmptyState()
                     : ListView.builder(
+                  controller: _scrollController,
                   padding: const EdgeInsets.symmetric(horizontal: 16),
-                  itemCount: notifications.length,
-                  itemBuilder: (context, index) =>
-                      _buildNotificationCard(notifications[index]),
+                  itemCount: notifications.length + (hasMore ? 1 : 0),
+                  itemBuilder: (context, index) {
+                    if (index == notifications.length) {
+                      return const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 20),
+                        child: Center(
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Color(0xFF3B82F6),
+                          ),
+                        ),
+                      );
+                    }
+                    return _buildNotificationCard(notifications[index]);
+                  },
                 ),
               ),
             ),
@@ -99,6 +204,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     bool isReceived = item['type'] == "RECEIVED_INTEREST";
     bool isAccepted = item['status'] == "ACCEPTED";
     bool isPending = item['status'] == "PENDING";
+    String? profilePic = item['profilePic'];
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -116,16 +222,27 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Avatar
-          CircleAvatar(
-            radius: 27,
-            backgroundColor: const Color(0xFF1E293B),
-            backgroundImage: NetworkImage(
-              "https://api.dicebear.com/7.x/avataaars/svg?seed=${item['userName']}",
+          // ✅ Profile Pic with Backend Integration & Fallback
+          CachedNetworkImage(
+            imageUrl: profilePic ?? "",
+            imageBuilder: (context, imageProvider) => CircleAvatar(
+              radius: 27,
+              backgroundImage: imageProvider,
+            ),
+            placeholder: (context, url) => const CircleAvatar(
+              radius: 27,
+              backgroundColor: Color(0xFF1E293B),
+              child: CircularProgressIndicator(strokeWidth: 1, color: Color(0xFF3B82F6)),
+            ),
+            errorWidget: (context, url, error) => CircleAvatar(
+              radius: 27,
+              backgroundColor: const Color(0xFF1E293B),
+              backgroundImage: NetworkImage(
+                "https://api.dicebear.com/7.x/avataaars/svg?seed=${item['userName']}",
+              ),
             ),
           ),
           const SizedBox(width: 14),
-          // Content
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -145,25 +262,22 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                         ),
                       ),
                     ),
-                    const Text(
-                      "Just now",
-                      style: TextStyle(color: Color(0xFF475569), fontSize: 11),
+                    Text(
+                      _formatTime(item['createdAt']),
+                      style: const TextStyle(color: Color(0xFF475569), fontSize: 11),
                     ),
                   ],
                 ),
                 const SizedBox(height: 4),
                 Text(
                   isAccepted
-                      ? "You and ${item['userName']} are now connected for ${item['sparkCategory']}. Let's chat!"
-                      : "${item['userName']} wants to join your ${item['sparkCategory']} spark.",
+                      ? "Aap aur ${item['userName']} ab ${item['sparkCategory']} ke liye connect ho gaye hain!"
+                      : "${item['userName']} aapke ${item['sparkCategory']} spark mein aana chahta hai.",
                   style: const TextStyle(
                     color: Color(0xFF94A3B8),
                     fontSize: 13,
-                    // lineHeight: 1.4,
                   ),
                 ),
-
-                // Action Buttons
                 if (isPending && isReceived) ...[
                   const SizedBox(height: 14),
                   ElevatedButton.icon(
@@ -175,11 +289,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                         borderRadius: BorderRadius.circular(14),
                       ),
                     ),
-                    icon: const Icon(
-                      Icons.check,
-                      size: 16,
-                      color: Colors.white,
-                    ),
+                    icon: const Icon(Icons.check, size: 16, color: Colors.white),
                     label: const Text(
                       "Accept Interest",
                       style: TextStyle(
@@ -189,7 +299,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                     ),
                   ),
                 ],
-
                 if (isAccepted) ...[
                   const SizedBox(height: 14),
                   OutlinedButton.icon(
@@ -201,6 +310,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                             chatRoomId: item['chatRoomId'],
                             userName: item['userName'],
                             otherUserPhone: item['otherUserPhone'],
+                            instagramHandle: item['instagramHandle'] ?? "",
                           ),
                         ),
                       );
@@ -234,23 +344,42 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     );
   }
 
+  String _formatTime(String? dateStr) {
+    if (dateStr == null) return "Abhi";
+    try {
+      final DateTime date = DateTime.parse(dateStr);
+      final Duration diff = DateTime.now().difference(date);
+      if (diff.inMinutes < 60) return "${diff.inMinutes}m ago";
+      if (diff.inHours < 24) return "${diff.inHours}h ago";
+      return "${diff.inDays}d ago";
+    } catch (e) {
+      return "";
+    }
+  }
+
   Widget _buildEmptyState() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.notifications_none_outlined,
-            size: 48,
-            color: const Color(0xFF1E293B),
+    return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      children: [
+        SizedBox(height: MediaQuery.of(context).size.height * 0.3),
+        const Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.notifications_none_outlined,
+                size: 48,
+                color: Color(0xFF1E293B),
+              ),
+              SizedBox(height: 12),
+              Text(
+                "Koi notification nahi hai bhai!",
+                style: TextStyle(color: Color(0xFF475569), fontSize: 16),
+              ),
+            ],
           ),
-          const SizedBox(height: 12),
-          const Text(
-            "No notifications yet",
-            style: TextStyle(color: Color(0xFF475569), fontSize: 16),
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
@@ -269,6 +398,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: const Color(0xFF1C2128),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Text(title, style: const TextStyle(color: Colors.white)),
         content: Text(
           content,
@@ -277,7 +407,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text("OK"),
+            child: const Text("OK", style: TextStyle(color: Color(0xFF3B82F6))),
           ),
         ],
       ),

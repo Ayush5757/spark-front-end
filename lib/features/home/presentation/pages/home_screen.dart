@@ -16,11 +16,19 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final ApiService _apiService = ApiService();
+  final ScrollController _scrollController = ScrollController(); // Added for pagination
   List<dynamic> sparks = [];
   bool isLoading = false;
+
+  // --- New Pagination States ---
+  bool isMoreLoading = false;
+  bool hasMore = true;
+  int currentPage = 0;
+  // -----------------------------
+
   int? interestLoadingId;
-  String selectedFilter = "BOTH"; // Default filter
-  final List<String> filterOptions = ["MALE", "FEMALE", "BOTH"];
+  String selectedFilter = "EVERYONE"; // Default filter
+  final List<String> filterOptions = ["MALE", "FEMALE", "EVERYONE"];
 
 
   // Stream subscription taaki location status track ho sake
@@ -30,6 +38,7 @@ class _HomeScreenState extends State<HomeScreen> {
   final Color bgBlack = const Color(0xFF0A0C10);
   final Color cardBg = const Color(0xFF1C2128);
   final Color borderColor = const Color(0xFF30363D);
+  final Color accentGreen = const Color(0xFF2DD4BF); // Tera Favourite Green
   final List<Color> gradientColors = [
     const Color(0xFF3B82F6),
     const Color(0xFF2DD4BF),
@@ -40,13 +49,21 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     _loadSavedFilter();
     _setupFCM();
-    _initHomeData();
+
+    // Pagination Listener: Jaise hi end pe pahunche, next page fetch karo
+    _scrollController.addListener(() {
+      if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent * 0.85) {
+        if (!isLoading && !isMoreLoading && hasMore) {
+          _fetchMoreFeed();
+        }
+      }
+    });
   }
 
   Future<void> _loadSavedFilter() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
-      selectedFilter = prefs.getString('feed_filter') ?? "BOTH";
+      selectedFilter = prefs.getString('feed_filter') ?? "EVERYONE";
     });
     _initHomeData(); // Filter milne ke baad data load karo
   }
@@ -62,7 +79,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   void dispose() {
-    // Subscription ko cancel karna mat bhulna
+    // Subscription aur Controller ko dispose karna mat bhulna
+    _scrollController.dispose();
     _serviceStatusSubscription?.cancel();
     super.dispose();
   }
@@ -211,6 +229,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // --- FCM & Notifications ---
   Future<void> _setupFCM() async {
+    setState(() {
+      isLoading = true;
+    });
     try {
       FirebaseMessaging messaging = FirebaseMessaging.instance;
       await messaging.requestPermission();
@@ -228,41 +249,93 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  // --- API Calls ---
+  // --- API CALL: Initial Fetch with Pagination Support ---
   Future<void> _fetchFeed() async {
-    setState(() => isLoading = true);
+    setState(() {
+      isLoading = true;
+      currentPage = 0;
+      hasMore = true;
+      // sparks.clear(); // Clear optionally, loader will handle visibility
+    });
     try {
-      // Jo tumne backend banaya: /feed/filter?gender=MALE
       final response = await _apiService.dio.get(
         "/api/sparks/feed/filter",
-        queryParameters: {'gender': selectedFilter},
+        queryParameters: {
+          'gender': selectedFilter,
+          'page': 0,
+          'size': 15
+        },
       );
 
       if (response.data['success'] == true) {
-        setState(() => sparks = response.data['data']);
+        setState(() {
+          sparks = response.data['data'];
+          if (sparks.isEmpty) hasMore = false;
+        });
       }
     } catch (e) {
       debugPrint("Feed Error: $e");
     } finally {
-      setState(() => isLoading = false);
+      if (mounted) setState(() => isLoading = false);
+    }
+  }
+
+  // --- API CALL: Load More logic ---
+  Future<void> _fetchMoreFeed() async {
+    if (isMoreLoading || !hasMore) return;
+
+    setState(() => isMoreLoading = true);
+
+    // Safety Timer (5 Seconds)
+    Timer(const Duration(seconds: 5), () {
+      if (mounted && isMoreLoading) setState(() => isMoreLoading = false);
+    });
+
+    int nextPage = currentPage + 1;
+
+    try {
+      final response = await _apiService.dio.get(
+        "/api/sparks/feed/filter",
+        queryParameters: {
+          'gender': selectedFilter,
+          'page': nextPage,
+          'size': 15
+        },
+      );
+
+      if (response.data['success'] == true) {
+        final List newItems = response.data['data'];
+        setState(() {
+          if (newItems.isEmpty) {
+            hasMore = false;
+          } else {
+            sparks.addAll(newItems);
+            currentPage = nextPage;
+          }
+        });
+      }
+    } catch (e) {
+      debugPrint("Pagination Error: $e");
+    } finally {
+      if (mounted) setState(() => isMoreLoading = false);
     }
   }
 
   // --- 4. UI: Filter Header Widget ---
   Widget _buildFilterBar() {
     return Container(
-      width: double.infinity, // Poori width lega taaki center kar sake
+      width: double.infinity,
       margin: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.center, // 🔥 Isse buttons center mein aayenge
+        mainAxisAlignment: MainAxisAlignment.center,
         children: filterOptions.map((filter) {
           bool isSelected = selectedFilter == filter;
 
           return Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 5), // Buttons ke beech ka gap
+            padding: const EdgeInsets.symmetric(horizontal: 5),
             child: ChoiceChip(
               label: Text(
-                filter == "BOTH" ? "Everyone" : filter,
+                filter == "EVERYONE" ? "EVERYONE" : filter,
                 style: TextStyle(
                   color: isSelected ? Colors.black : Colors.white70,
                   fontSize: 12,
@@ -270,9 +343,9 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
               selected: isSelected,
-              selectedColor: const Color(0xFF2DD4BF), // Tera favourite colour same rakha hai
+              selectedColor: const Color(0xFF2DD4BF),
               backgroundColor: cardBg,
-              showCheckmark: false, // Apple style mein checkmark nahi hota, clean lagta hai
+              showCheckmark: false,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
                 side: BorderSide(
@@ -289,39 +362,40 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // --- Handle Interest (Backend Error Message Logic) ---
+  // --- Handle Interest (Optimistic Approach applied 🔥) ---
   Future<void> _handleInterest(int eventId) async {
-    setState(() => interestLoadingId = eventId);
+    // Current list ka backup for rollback
+    final originalSparks = List.from(sparks);
+
+    // 1. UI ko turant update karo
+    setState(() {
+      final index = sparks.indexWhere((s) => s['id'] == eventId);
+      if (index != -1) sparks[index]['interested'] = true;
+    });
+
     try {
       final response = await _apiService.dio.post(
         "/api/matches/interest/$eventId",
       );
 
-      // Agar backend success message bhej raha hai toh wo dikhao, varna default
       String successMsg = response.data.toString().contains("success")
           ? "Interest bhej diya gaya hai!"
           : response.data.toString();
 
       _showSnackBar("Sent! 🔥", successMsg);
 
-      setState(() {
-        final index = sparks.indexWhere((s) => s['id'] == eventId);
-        if (index != -1) sparks[index]['interested'] = true;
-      });
     } on DioException catch (e) {
-      // Yaha hum backend se aane wala error message catch kar rahe hain
-      String errorMessage = "Request fail ho gayi.";
+      // 2. Error aane par rollback
+      setState(() => sparks = originalSparks);
 
+      String errorMessage = "Request fail ho gayi.";
       if (e.response != null) {
-        // Backend se aane wala message (e.g., "Bhai, khud ke Spark pe...")
         errorMessage = e.response?.data.toString() ?? errorMessage;
       }
-
       _showSnackBar("Ruk Jao!", errorMessage);
     } catch (e) {
+      setState(() => sparks = originalSparks);
       _showSnackBar("Oops!", "Kuch galat hua.");
-    } finally {
-      setState(() => interestLoadingId = null);
     }
   }
 
@@ -329,38 +403,82 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: bgBlack,
-      body: SafeArea(
-        child: Column(
-          children: [
-            _buildHeader(),
-            _buildFilterBar(),
-            Expanded(
-              child: RefreshIndicator(
-                onRefresh: _fetchFeed,
-                color: Colors.white,
-                backgroundColor: cardBg,
-                child: sparks.isEmpty && !isLoading
-                    ? ListView(
-                  children: const [
-                    SizedBox(height: 200),
-                    Center(
-                      child: Text(
-                        "No live vibes near you",
-                        style: TextStyle(color: Colors.white70),
+      body: Stack( // Added Stack for Full Screen Loader
+        children: [
+          SafeArea(
+            child: Column(
+              children: [
+                _buildHeader(),
+                _buildFilterBar(),
+                Expanded(
+                  child: RefreshIndicator(
+                    onRefresh: _fetchFeed,
+                    color: accentGreen,
+                    backgroundColor: cardBg,
+                    child: sparks.isEmpty && !isLoading
+                        ? ListView(
+                      children: const [
+                        SizedBox(height: 200),
+                        Center(
+                          child: Text(
+                            "No live vibes near you",
+                            style: TextStyle(color: Colors.white70),
+                          ),
+                        ),
+                      ],
+                    )
+                        : ListView.builder(
+                      controller: _scrollController, // Controller attached
+                      padding: const EdgeInsets.all(16),
+                      // Current list + loader if hasMore
+                      itemCount: sparks.length + (isMoreLoading ? 1 : 0),
+                      itemBuilder: (context, index) {
+                        if (index == sparks.length) {
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 20),
+                            child: Center(
+                              child: CircularProgressIndicator(
+                                color: accentGreen,
+                                strokeWidth: 2,
+                              ),
+                            ),
+                          );
+                        }
+                        return _buildSparkCard(sparks[index]);
+                      },
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // --- FULL SCREEN LOADER OVERLAY ---
+          if (isLoading)
+            Container(
+              color: Colors.black.withOpacity(0.5),
+              child: Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    CircularProgressIndicator(
+                      color: accentGreen,
+                      strokeWidth: 3,
+                    ),
+                    const SizedBox(height: 15),
+                    const Text(
+                      "Finding vibes...",
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w500,
+                        letterSpacing: 1,
                       ),
                     ),
                   ],
-                )
-                    : ListView.builder(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: sparks.length,
-                  itemBuilder: (context, index) =>
-                      _buildSparkCard(sparks[index]),
                 ),
               ),
             ),
-          ],
-        ),
+        ],
       ),
       floatingActionButton: _buildFAB(),
     );
@@ -403,33 +521,17 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ],
           ),
-          _buildRefreshButton(),
+          // Mini Loader in Header (Optional since we have full screen now)
+          if (isLoading)
+            SizedBox(
+              width: 24,
+              height: 24,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: accentGreen,
+              ),
+            ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildRefreshButton() {
-    return InkWell(
-      onTap: _initHomeData,
-      borderRadius: BorderRadius.circular(14),
-      child: Container(
-        width: 44,
-        height: 44,
-        decoration: BoxDecoration(
-          color: cardBg,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: borderColor),
-        ),
-        child: isLoading
-            ? const Padding(
-          padding: EdgeInsets.all(12),
-          child: CircularProgressIndicator(
-            strokeWidth: 2,
-            color: Colors.white,
-          ),
-        )
-            : const Icon(Icons.refresh, color: Colors.white, size: 20),
       ),
     );
   }
@@ -437,7 +539,6 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildSparkCard(dynamic item) {
     final cat = _getCategoryData(item['category'] ?? "DEFAULT");
     bool alreadySent = item['interested'] ?? false;
-    bool isProcessing = interestLoadingId == item['id'];
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
@@ -512,7 +613,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     const Icon(Icons.group, size: 14, color: Color(0xFF8B949E)),
                     const SizedBox(width: 6),
                     Text(
-                      "Interested in ${item['targetGender'] ?? "Everyone"}",
+                      "Interested in ${item['genderPreference'] ?? "Everyone"}",
                       style: const TextStyle(
                         color: Color(0xFF8B949E),
                         fontSize: 12,
@@ -520,7 +621,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ],
                 ),
-                _buildJoinButton(alreadySent, isProcessing, item['id']),
+                _buildJoinButton(alreadySent, item['id']),
               ],
             ),
           ],
@@ -529,9 +630,9 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildJoinButton(bool alreadySent, bool isProcessing, int id) {
+  Widget _buildJoinButton(bool alreadySent, int id) {
     return GestureDetector(
-      onTap: (alreadySent || isProcessing) ? null : () => _handleInterest(id),
+      onTap: alreadySent ? null : () => _handleInterest(id),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
         decoration: BoxDecoration(
@@ -542,22 +643,13 @@ class _HomeScreenState extends State<HomeScreen> {
               ? Border.all(color: const Color(0xFF484F58))
               : null,
         ),
-        child: isProcessing
-            ? const SizedBox(
-          width: 16,
-          height: 16,
-          child: CircularProgressIndicator(
-            strokeWidth: 2,
-            color: Colors.white,
-          ),
-        )
-            : Row(
+        child: Row(
           children: [
             Icon(
               alreadySent ? Icons.check_circle_outline : Icons.favorite,
               size: 16,
               color: alreadySent
-                  ? const Color.fromARGB(255, 45, 212, 191)
+                  ? const Color(0xFF2DD4BF)
                   : Colors.white,
             ),
             const SizedBox(width: 6),
@@ -627,7 +719,10 @@ class _HomeScreenState extends State<HomeScreen> {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text("$title: $msg"),
+        content: Text(
+          "$title: $msg",
+          style: const TextStyle(color: Colors.white), // Added white color here 🔥
+        ),
         backgroundColor: cardBg,
         behavior: SnackBarBehavior.floating,
       ),

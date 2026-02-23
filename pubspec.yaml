@@ -49,6 +49,7 @@ dependencies:
   intl: ^0.20.2
   cached_network_image: ^3.4.1
   url_launcher: ^6.3.2
+  flutter_launcher_icons: ^0.14.4
 
 dev_dependencies:
   flutter_test:
@@ -71,7 +72,8 @@ flutter:
   # included with your application, so that you can use the icons in
   # the material Icons class.
   uses-material-design: true
-
+  assets:
+    - assets/images/
   # To add assets to your application, add an assets section, like this:
   # assets:
   #   - images/a_dot_burr.jpeg
@@ -102,3 +104,12 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
+
+flutter_launcher_icons:
+  android: "launcher_icon"
+  ios: true
+  image_path: "assets/images/logo-spark.jpg"
+  min_sdk_android: 21
+  adaptive_icon_background: "#000000" # Tera black theme color
+  adaptive_icon_foreground: "assets/images/logo-spark.jpg"
+  adaptive_icon_foreground_scale: 1.2

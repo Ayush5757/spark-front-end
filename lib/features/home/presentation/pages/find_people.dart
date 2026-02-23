@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:spark/models/nearby_user.dart';
 import '../../../../core/network/api_service.dart';
 import 'user_profile_sheet.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 class FindPeopleScreen extends StatefulWidget {
   const FindPeopleScreen({super.key});
@@ -16,16 +18,19 @@ class _FindPeopleScreenState extends State<FindPeopleScreen> {
   final TextEditingController _searchController = TextEditingController();
   Timer? _debounce;
 
-  // State Variables
-  List<dynamic> users = [];
+  // State Variables (Typed)
+  List<NearbyUser> users = [];
   int selectedRadius = 5;
   String searchQuery = "";
   int currentPage = 0;
+
+  // Loading Flags
   bool isLoading = false;
+  bool isRefreshing = false;
   bool isMoreLoading = false;
   bool hasMore = true;
 
-  // Design Colors
+  // Design System (Black & Green Theme)
   final Color bgBlack = const Color(0xFF0A0C10);
   final Color cardBg = const Color(0xFF1C2128);
   final Color accentColor = const Color(0xFF2DD4BF);
@@ -34,11 +39,10 @@ class _FindPeopleScreenState extends State<FindPeopleScreen> {
   @override
   void initState() {
     super.initState();
-    _fetchNearbyUsers();
+    _fetchInitialUsers();
 
-    // Pagination logic (Scroll listener)
     _scrollController.addListener(() {
-      if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent * 0.9) {
+      if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent * 0.85) {
         if (!isLoading && !isMoreLoading && hasMore) {
           _fetchMoreUsers();
         }
@@ -54,122 +58,99 @@ class _FindPeopleScreenState extends State<FindPeopleScreen> {
     super.dispose();
   }
 
-  // --- Logic: Search Debounce ---
-  _onSearchChanged(String query) {
-    if (_debounce?.isActive ?? false) _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 500), () {
-      setState(() {
-        searchQuery = query;
-      });
-      _fetchNearbyUsers();
-    });
-  }
-
-  // --- API Calls ---
-
-  Future<void> _fetchNearbyUsers() async {
+  // API Call: First Load or Refresh
+  Future<void> _fetchInitialUsers({bool silent = false}) async {
+    if (!mounted) return;
     setState(() {
-      isLoading = true;
+      if (!silent) isLoading = true;
+      else isRefreshing = true;
       currentPage = 0;
-      users.clear();
+      users.clear(); // Clear existing list on new search/radius
       hasMore = true;
     });
 
     try {
-      final response = await _apiService.dio.get(
-        "/api/sparks/nearby-search", // Make sure backend endpoint matches
-        queryParameters: {
-          "radius": selectedRadius,
-          "name": searchQuery,
-          "page": currentPage,
-          "size": 15, // Page size
-        },
-      );
+      final response = await _apiService.dio.get("/api/sparks/nearby-search", queryParameters: {
+        "radius": selectedRadius,
+        "name": searchQuery,
+        "page": 0,
+        "size": 15,
+      });
 
       if (response.data['success'] == true) {
+        final List rawData = response.data['data'];
+        final List<NearbyUser> fetchedUsers = rawData.map((e) => NearbyUser.fromJson(e)).toList();
+
         setState(() {
-          users = response.data['data'];
-          if (users.length < 15) hasMore = false;
+          users = fetchedUsers;
+          if (fetchedUsers.isEmpty) hasMore = false;
         });
       }
     } catch (e) {
-      debugPrint("Error: $e");
+      _showErrorSnackBar("Radar range se bahar hai! 📡");
     } finally {
-      setState(() => isLoading = false);
+      if (mounted) setState(() { isLoading = false; isRefreshing = false; });
     }
   }
 
+// API Call: Load More (Optimized Logic)
   Future<void> _fetchMoreUsers() async {
+    if (isMoreLoading || !hasMore) return;
+
     setState(() => isMoreLoading = true);
-    currentPage++;
+
+    // ✅ Safety Timer: 5 second se zyada loader nahi dikhayega
+    Timer(const Duration(seconds: 5), () {
+      if (mounted && isMoreLoading) {
+        setState(() => isMoreLoading = false);
+      }
+    });
+
+    int nextPage = currentPage + 1;
 
     try {
-      final response = await _apiService.dio.get(
-        "/api/profile/nearby",
-        queryParameters: {
-          "radius": selectedRadius,
-          "name": searchQuery,
-          "page": currentPage,
-          "size": 15,
-        },
-      );
+      final response = await _apiService.dio.get("/api/sparks/nearby-search", queryParameters: {
+        "radius": selectedRadius,
+        "name": searchQuery,
+        "page": nextPage,
+        "size": 15,
+      });
 
       if (response.data['success'] == true) {
-        List newUsers = response.data['data'];
+        final List rawData = response.data['data'];
+        final newItems = rawData.map((e) => NearbyUser.fromJson(e)).toList();
+
         setState(() {
-          if (newUsers.isEmpty) {
+          if (newItems.isEmpty) {
             hasMore = false;
           } else {
-            users.addAll(newUsers);
-            if (newUsers.length < 15) hasMore = false;
+            users.addAll(newItems);
+            currentPage = nextPage;
           }
         });
       }
     } catch (e) {
-      debugPrint("Error fetching more: $e");
+      debugPrint("Pagination Error: $e");
     } finally {
-      setState(() => isMoreLoading = false);
+      if (mounted) setState(() => isMoreLoading = false);
     }
   }
 
-  // --- UI Components ---
+  void _onSearchChanged(String query) {
+    if (_debounce?.isActive ?? false) _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 600), () {
+      setState(() => searchQuery = query);
+      _fetchInitialUsers(silent: true);
+    });
+  }
 
-  void _showCustomKmDialog() {
-    TextEditingController customController = TextEditingController();
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: cardBg,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text("Custom Range", style: TextStyle(color: Colors.white, fontSize: 18)),
-        content: TextField(
-          controller: customController,
-          keyboardType: TextInputType.number,
-          autofocus: true,
-          style: const TextStyle(color: Colors.white),
-          decoration: InputDecoration(
-            hintText: "Enter km (e.g. 50)",
-            hintStyle: const TextStyle(color: Colors.white24),
-            enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: accentColor)),
-          ),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancel")),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: accentColor),
-            onPressed: () {
-              if (customController.text.isNotEmpty) {
-                setState(() => selectedRadius = int.parse(customController.text));
-                _fetchNearbyUsers();
-                Navigator.pop(context);
-              }
-            },
-            child: const Text("Apply", style: TextStyle(color: Colors.black)),
-          ),
-        ],
-      ),
+  void _showErrorSnackBar(String msg) {
+    ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(msg), backgroundColor: Colors.redAccent)
     );
   }
+
+  // --- UI Layout ---
 
   @override
   Widget build(BuildContext context) {
@@ -178,124 +159,121 @@ class _FindPeopleScreenState extends State<FindPeopleScreen> {
       appBar: AppBar(
         backgroundColor: bgBlack,
         elevation: 0,
-        title: const Text("Radar", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 24, color: Colors.white)),
+        title: const Text("Radar", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 28, color: Colors.white)),
+        actions: [
+          if (isRefreshing)
+            const Padding(
+              padding: EdgeInsets.only(right: 20),
+              child: Center(child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF2DD4BF)))),
+            ),
+        ],
       ),
       body: Column(
         children: [
-          // 1. Search Bar
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: TextField(
-              controller: _searchController,
-              onChanged: _onSearchChanged,
-              style: const TextStyle(color: Colors.white),
-              decoration: InputDecoration(
-                hintText: "Search people nearby...",
-                hintStyle: const TextStyle(color: Colors.white38),
-                prefixIcon: Icon(Icons.search, color: accentColor, size: 20),
-                filled: true,
-                fillColor: cardBg,
-                contentPadding: const EdgeInsets.symmetric(vertical: 0),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide.none),
-              ),
-            ),
-          ),
-
-          // 2. Distance Filter + Custom Button
-          _buildDistanceRow(),
-
-          // 3. User List
+          _buildSearchField(),
+          _buildRadiusBar(),
           Expanded(
             child: isLoading
                 ? Center(child: CircularProgressIndicator(color: accentColor))
-                : _buildUserList(),
+                : RefreshIndicator(
+              onRefresh: () => _fetchInitialUsers(silent: true),
+              color: accentColor,
+              backgroundColor: cardBg,
+              child: _buildMainList(),
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildDistanceRow() {
-    final List<int> radiusOptions = [2, 5, 10];
+  Widget _buildSearchField() {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
-      child: Row(
-        children: [
-          // Fixed Options
-          Container(
-            padding: const EdgeInsets.all(4),
-            decoration: BoxDecoration(color: cardBg, borderRadius: BorderRadius.circular(12)),
-            child: Row(
-              children: radiusOptions.map((km) {
-                bool isSelected = selectedRadius == km;
-                return GestureDetector(
-                  onTap: () {
-                    setState(() => selectedRadius = km);
-                    _fetchNearbyUsers();
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: isSelected ? accentColor : Colors.transparent,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      "${km}km",
-                      style: TextStyle(color: isSelected ? Colors.black : Colors.white60, fontWeight: FontWeight.bold, fontSize: 12),
-                    ),
-                  ),
-                );
-              }).toList(),
-            ),
-          ),
-          const SizedBox(width: 8),
-          // Custom / More Button
-          GestureDetector(
-            onTap: _showCustomKmDialog,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              decoration: BoxDecoration(
-                color: !radiusOptions.contains(selectedRadius) ? accentColor : cardBg,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Text(
-                !radiusOptions.contains(selectedRadius) ? "${selectedRadius}km" : "Custom +",
-                style: TextStyle(
-                  color: !radiusOptions.contains(selectedRadius) ? Colors.black : Colors.white60,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 12,
-                ),
-              ),
-            ),
-          ),
-        ],
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: TextField(
+        controller: _searchController,
+        onChanged: _onSearchChanged,
+        style: const TextStyle(color: Colors.white),
+        decoration: InputDecoration(
+          hintText: "Search people nearby...",
+          hintStyle: const TextStyle(color: Colors.white38, fontSize: 14),
+          prefixIcon: Icon(Icons.search, color: accentColor, size: 20),
+          filled: true,
+          fillColor: cardBg,
+          contentPadding: EdgeInsets.zero,
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide.none),
+        ),
       ),
     );
   }
 
-  Widget _buildUserList() {
-    if (users.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Text("❄️", style: TextStyle(fontSize: 40)),
-            const SizedBox(height: 10),
-            Text(searchQuery.isEmpty ? "Aas paas koi nahi mila" : "No user found with '$searchQuery'",
-                style: const TextStyle(color: Colors.white60)),
-          ],
+  Widget _buildRadiusBar() {
+    final List<int> options = [2, 5, 10, 25];
+    return Container(
+      height: 50,
+      margin: const EdgeInsets.symmetric(vertical: 8),
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        itemCount: options.length + 1,
+        itemBuilder: (context, index) {
+          if (index == options.length) {
+            bool isCustom = !options.contains(selectedRadius);
+            return _buildRadiusChip(isCustom ? "${selectedRadius}km" : "Custom +", isCustom, true);
+          }
+          int val = options[index];
+          return _buildRadiusChip("${val}km", selectedRadius == val, false, val: val);
+        },
+      ),
+    );
+  }
+
+  Widget _buildRadiusChip(String label, bool isSelected, bool isCustomBtn, {int? val}) {
+    return GestureDetector(
+      onTap: () {
+        if (isCustomBtn) _showCustomKmDialog();
+        else {
+          setState(() => selectedRadius = val!);
+          _fetchInitialUsers(silent: true);
+        }
+      },
+      child: Container(
+        margin: const EdgeInsets.only(right: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected ? accentColor : cardBg,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: isSelected ? accentColor : borderColor, width: 1),
         ),
+        child: Center(
+          child: Text(label, style: TextStyle(color: isSelected ? Colors.black : Colors.white60, fontWeight: FontWeight.bold, fontSize: 12)),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMainList() {
+    if (users.isEmpty && !isLoading) {
+      return ListView(
+        children: [
+          SizedBox(height: MediaQuery.of(context).size.height * 0.2),
+          const Center(child: Text("❄️", style: TextStyle(fontSize: 50))),
+          const SizedBox(height: 10),
+          const Center(child: Text("Aas paas koi nahi mila", style: TextStyle(color: Colors.white60))),
+        ],
       );
     }
 
-    return ListView.builder(
+    return ListView.separated(
       controller: _scrollController,
-      padding: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      // ✅ Change: hasMore ki jagah isMoreLoading check ho raha hai
       itemCount: users.length + (isMoreLoading ? 1 : 0),
+      separatorBuilder: (context, index) => Divider(color: borderColor.withOpacity(0.3), height: 1),
       itemBuilder: (context, index) {
         if (index == users.length) {
           return Padding(
-            padding: const EdgeInsets.all(16.0),
+            padding: const EdgeInsets.symmetric(vertical: 20),
             child: Center(child: CircularProgressIndicator(color: accentColor, strokeWidth: 2)),
           );
         }
@@ -304,77 +282,125 @@ class _FindPeopleScreenState extends State<FindPeopleScreen> {
     );
   }
 
-  Widget _buildUserTile(dynamic user) {
-    String? imageUrl;
-    if (user['profileImage'] != null) {
-      if (user['profileImage'] is List && user['profileImage'].isNotEmpty) {
-        imageUrl = user['profileImage'][0];
-      } else if (user['profileImage'] is String) {
-        imageUrl = user['profileImage'];
-      }
-    }
-
-    String? instaHandle = user['instagram'];
-    bool hasInsta = instaHandle != null && instaHandle.isNotEmpty;
-
+  Widget _buildUserTile(NearbyUser user) {
     return InkWell(
       onTap: () {
-        // Modal open ho raha hai aur sirf ID pass kar rahe hain
         showModalBottomSheet(
           context: context,
           isScrollControlled: true,
           backgroundColor: Colors.transparent,
-          builder: (context) => UserProfileModal(userId: user['id']),
+          builder: (context) => UserProfileModal(userId: user.id),
         );
       },
-      borderRadius: BorderRadius.circular(15),
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 16),
-        padding: const EdgeInsets.all(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 12),
         child: Row(
           children: [
-            CircleAvatar(
-              radius: 28,
-              backgroundColor: borderColor,
-              backgroundImage: NetworkImage(imageUrl ?? 'https://via.placeholder.com/150'),
+            Stack(
+              children: [
+                CachedNetworkImage(
+                  imageUrl: user.imageUrl ?? "",
+                  imageBuilder: (context, imageProvider) => Container(
+                    width: 60,
+                    height: 60,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(color: borderColor, width: 1),
+                      image: DecorationImage(
+                        image: imageProvider,
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                  ),
+                  placeholder: (context, url) => Container(
+                    width: 60,
+                    height: 60,
+                    decoration: BoxDecoration(color: borderColor, shape: BoxShape.circle),
+                    child: Center(
+                      child: SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: accentColor),
+                      ),
+                    ),
+                  ),
+                  errorWidget: (context, url, error) => Container(
+                    width: 60,
+                    height: 60,
+                    decoration: BoxDecoration(color: borderColor, shape: BoxShape.circle),
+                    child: const Icon(Icons.person, color: Colors.white54),
+                  ),
+                ),
+                Positioned(
+                  bottom: 0,
+                  right: 0,
+                  child: Container(
+                    width: 14,
+                    height: 14,
+                    decoration: BoxDecoration(
+                      color: Colors.green,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: bgBlack, width: 2.5),
+                    ),
+                  ),
+                )
+              ],
             ),
             const SizedBox(width: 15),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    user['fullName'] ?? "Stranger",
-                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+                  Row(
+                    children: [
+                      Text(user.fullName, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+                      const SizedBox(width: 5),
+                      Text("• ${user.distance.toStringAsFixed(1)}km", style: const TextStyle(color: Colors.white38, fontSize: 11)),
+                    ],
                   ),
-                  Text(
-                    user['bio'] ?? "Vibe check no bio",
-                    style: const TextStyle(color: Colors.white54, fontSize: 12),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 6),
-                  if (hasInsta)
-                    Row(
-                      children: [
-                        Image.network(
-                          'https://upload.wikimedia.org/wikipedia/commons/thumb/a/a5/Instagram_icon.png/600px-Instagram_icon.png',
-                          height: 14,
-                          width: 14,
-                        ),
-                        const SizedBox(width: 5),
-                        Text(
-                          "@$instaHandle",
-                          style: TextStyle(color: accentColor, fontSize: 11, fontWeight: FontWeight.w600),
-                        ),
-                      ],
-                    ),
+                  const SizedBox(height: 4),
+                  Text(user.bio, style: const TextStyle(color: Colors.white54, fontSize: 13), maxLines: 1, overflow: TextOverflow.ellipsis),
+                  if (user.instaHandle != null) ...[
+                    const SizedBox(height: 6),
+                    Text("@${user.instaHandle}", style: TextStyle(color: accentColor, fontSize: 11, fontWeight: FontWeight.bold)),
+                  ],
                 ],
               ),
             ),
-            Icon(Icons.arrow_forward_ios, color: Colors.white.withOpacity(0.1), size: 14),
+            const Icon(Icons.arrow_forward_ios, color: Colors.white10, size: 14),
           ],
         ),
+      ),
+    );
+  }
+
+  void _showCustomKmDialog() {
+    TextEditingController customController = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: cardBg,
+        title: const Text("Set Range", style: TextStyle(color: Colors.white)),
+        content: TextField(
+          controller: customController,
+          keyboardType: TextInputType.number,
+          style: const TextStyle(color: Colors.white),
+          decoration: InputDecoration(hintText: "Enter km", hintStyle: TextStyle(color: Colors.white24), enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: accentColor))),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancel")),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: accentColor),
+            onPressed: () {
+              if (customController.text.isNotEmpty) {
+                setState(() => selectedRadius = int.parse(customController.text));
+                _fetchInitialUsers(silent: true);
+                Navigator.pop(context);
+              }
+            },
+            child: const Text("Apply", style: TextStyle(color: Colors.black)),
+          ),
+        ],
       ),
     );
   }
