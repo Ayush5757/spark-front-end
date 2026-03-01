@@ -7,14 +7,14 @@ import '../../../../core/network/api_service.dart';
 
 class ChatRoomScreen extends StatefulWidget {
   final String chatRoomId;
-  final String userName;
+  final String? userName; // Nullable banaya taaki error na aaye
   final String otherUserPhone;
   final String? instagramHandle;
 
   const ChatRoomScreen({
     super.key,
     required this.chatRoomId,
-    required this.userName,
+    this.userName, // Required se hata kar optional kiya safety ke liye
     required this.otherUserPhone,
     this.instagramHandle,
   });
@@ -34,7 +34,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
   int page = 0;
   bool isLoadingMore = false;
   bool hasMore = true;
-  bool isInitialLoading = true; // Naya: Initial load ke liye loader
+  bool isInitialLoading = true;
 
   @override
   void initState() {
@@ -43,7 +43,6 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
     _scrollController.addListener(_onScroll);
   }
 
-  // Scroll logic: Reverse list mein maxScrollExtent matlab "Top of the chat"
   void _onScroll() {
     if (_scrollController.position.pixels >=
         _scrollController.position.maxScrollExtent - 200 &&
@@ -76,7 +75,6 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
                 final newMsg = jsonDecode(frame.body!);
 
                 setState(() {
-                  // Duplicate check using content, sender and timestamp type
                   messages.removeWhere(
                         (m) =>
                     m['content'] == newMsg['content'] &&
@@ -84,10 +82,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
                         m['timestamp'] is int,
                   );
 
-                  messages.insert(
-                    0,
-                    newMsg,
-                  ); // Naya message hamesha bottom pe (index 0 because reverse: true)
+                  messages.insert(0, newMsg);
                 });
 
                 if (newMsg['senderPhone'].toString() != myPhone) {
@@ -138,13 +133,13 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
         hasMore = false;
       } else {
         setState(() {
-          messages.addAll(newMsgs); // Purane messages list ke end mein judenge
+          messages.addAll(newMsgs);
           if (newMsgs.length < 20) hasMore = false;
         });
       }
     } catch (e) {
       debugPrint("Load More Error: $e");
-      page--; // Error aaye toh page count wapas le jao
+      page--;
     } finally {
       setState(() => isLoadingMore = false);
     }
@@ -171,7 +166,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
     };
 
     setState(() {
-      messages.insert(0, localMsg); // Reverse list mein index 0 matlab bottom
+      messages.insert(0, localMsg);
     });
 
     try {
@@ -187,9 +182,9 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
       setState(() {
         messages.removeAt(0);
       });
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text("Failed to send")));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Failed to send")),
+      );
     }
   }
 
@@ -208,7 +203,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              widget.userName,
+              widget.userName ?? "User", // ✅ Safe handling of Null
               style: const TextStyle(color: Colors.white, fontSize: 16),
             ),
             const Text(
@@ -218,17 +213,20 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
           ],
         ),
         actions: [
-          if (widget.instagramHandle != null)
+          // ✅ Safe Instagram handling
+          if (widget.instagramHandle != null && widget.instagramHandle!.isNotEmpty)
             IconButton(
               icon: const Icon(
                 Icons.camera_alt_outlined,
                 color: Color(0xFFE4405F),
               ),
-              onPressed: () => launchUrl(
-                Uri.parse(
-                  "https://instagram.com/${widget.instagramHandle!.replaceAll('@', '')}",
-                ),
-              ),
+              onPressed: () async {
+                final handle = widget.instagramHandle!.replaceAll('@', '');
+                final url = Uri.parse("https://instagram.com/$handle");
+                if (await canLaunchUrl(url)) {
+                  await launchUrl(url, mode: LaunchMode.externalApplication);
+                }
+              },
             ),
         ],
       ),
@@ -239,7 +237,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
                 ? const Center(child: CircularProgressIndicator())
                 : ListView.builder(
               controller: _scrollController,
-              reverse: true, // Naye niche, Purane upar
+              reverse: true,
               itemCount: messages.length + (isLoadingMore ? 1 : 0),
               itemBuilder: (context, index) {
                 if (index == messages.length) {
@@ -251,8 +249,9 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
                   );
                 }
                 final msg = messages[index];
+                // ✅ toString() ke saath null check
                 final bool isMine =
-                    msg['senderPhone'].toString() == myPhone;
+                    (msg['senderPhone']?.toString() ?? "") == myPhone;
                 return _buildMessageBubble(msg, isMine);
               },
             ),
@@ -279,7 +278,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
           ),
         ),
         child: Text(
-          msg['content'] ?? "",
+          msg['content']?.toString() ?? "", // ✅ Null safety for content
           style: const TextStyle(color: Colors.white, fontSize: 15),
         ),
       ),

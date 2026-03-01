@@ -369,7 +369,7 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> {
                 ),
               ),
               const Text(
-                "Matches hone ke baad baatcheet shuru hogi.",
+                "Vibe first, talk later! Get matched to start chatting. 🚀",
                 style: TextStyle(color: Colors.grey),
               ),
             ],

@@ -3,6 +3,8 @@ import 'package:dio/dio.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../../../core/network/api_service.dart';
 import '../../../home/presentation/pages/chat_room_screen.dart';
+// ✅ UserProfileModal ka import (Apne folder structure ke hisaab se path check kar lena)
+import '../../../home/presentation/pages/user_profile_sheet.dart';
 
 class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({super.key});
@@ -28,7 +30,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     super.initState();
     _fetchInitialNotifications();
 
-    // ✅ Pagination Listener: Jab user 85% scroll karega, next page fetch hoga
     _scrollController.addListener(() {
       if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent * 0.85) {
         if (!isMoreLoading && hasMore) {
@@ -44,7 +45,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     super.dispose();
   }
 
-  // --- API: Fetch Initial Notifications ---
   Future<void> _fetchInitialNotifications({bool silent = false}) async {
     if (!mounted) return;
 
@@ -58,10 +58,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     try {
       final response = await _apiService.dio.get(
         "/api/matches/my-notifications",
-        queryParameters: {"page": 0, "size": 15},
+        queryParameters: {"page": 0, "size": 10},
       );
 
-      // Spring Page mapping
       final responseData = response.data as Map<String, dynamic>;
       final List fetchedList = responseData['content'] ?? [];
       final bool isLast = responseData['last'] ?? true;
@@ -81,12 +80,11 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           isLoading = false;
           isRefreshing = false;
         });
-        _showSnackBar("Error", "Data load karne mein issue aaya bhai!");
+        _showSnackBar("Error", "Oops! The vibe is lagging. Try again? ⚡");
       }
     }
   }
 
-  // --- API: Fetch More Notifications (Pagination) ---
   Future<void> _fetchMoreNotifications() async {
     if (isMoreLoading || !hasMore) return;
 
@@ -96,7 +94,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     try {
       final response = await _apiService.dio.get(
         "/api/matches/my-notifications",
-        queryParameters: {"page": nextPage, "size": 15},
+        queryParameters: {"page": nextPage, "size": 10},
       );
 
       final responseData = response.data as Map<String, dynamic>;
@@ -119,14 +117,13 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     }
   }
 
-  // --- API: Accept Interest ---
   Future<void> _handleAccept(int matchId) async {
     try {
       await _apiService.dio.post("/api/matches/accept/$matchId");
-      _showSuccessDialog("Matched! 🎉", "Ab aap chat kar sakte hain.");
+      _showSuccessDialog("Matched! 🎉", "It’s a Match! 🎉 Start the spark now.");
       _fetchInitialNotifications(silent: true);
     } on DioException catch (e) {
-      String errorMsg = e.response?.data?.toString() ?? "Accept nahi ho paya";
+      String errorMsg = e.response?.data?.toString() ?? "Action failed. Let's give it another shot!";
       _showSnackBar("Oops!", errorMsg);
     }
   }
@@ -206,140 +203,150 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     bool isPending = item['status'] == "PENDING";
     String? profilePic = item['profilePic'];
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: const Color(0xFF0D1117),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(
-          color: isPending
-              ? const Color(0xFF3B82F6).withOpacity(0.4)
-              : const Color(0xFF1E293B),
-          width: 1,
+    // ✅ Click par Profile open karne ke liye InkWell add kiya
+    return InkWell(
+      onTap: () {
+        showModalBottomSheet(
+          context: context,
+          isScrollControlled: true,
+          backgroundColor: Colors.transparent,
+          builder: (context) => UserProfileModal(userId: item['userID']),
+        );
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: const Color(0xFF0D1117),
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(
+            color: isPending
+                ? const Color(0xFF3B82F6).withOpacity(0.4)
+                : const Color(0xFF1E293B),
+            width: 1,
+          ),
         ),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // ✅ Profile Pic with Backend Integration & Fallback
-          CachedNetworkImage(
-            imageUrl: profilePic ?? "",
-            imageBuilder: (context, imageProvider) => CircleAvatar(
-              radius: 27,
-              backgroundImage: imageProvider,
-            ),
-            placeholder: (context, url) => const CircleAvatar(
-              radius: 27,
-              backgroundColor: Color(0xFF1E293B),
-              child: CircularProgressIndicator(strokeWidth: 1, color: Color(0xFF3B82F6)),
-            ),
-            errorWidget: (context, url, error) => CircleAvatar(
-              radius: 27,
-              backgroundColor: const Color(0xFF1E293B),
-              backgroundImage: NetworkImage(
-                "https://api.dicebear.com/7.x/avataaars/svg?seed=${item['userName']}",
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            CachedNetworkImage(
+              imageUrl: profilePic ?? "",
+              imageBuilder: (context, imageProvider) => CircleAvatar(
+                radius: 27,
+                backgroundImage: imageProvider,
+              ),
+              placeholder: (context, url) => const CircleAvatar(
+                radius: 27,
+                backgroundColor: Color(0xFF1E293B),
+                child: CircularProgressIndicator(strokeWidth: 1, color: Color(0xFF3B82F6)),
+              ),
+              errorWidget: (context, url, error) => CircleAvatar(
+                radius: 27,
+                backgroundColor: const Color(0xFF1E293B),
+                backgroundImage: NetworkImage(
+                  "https://api.dicebear.com/7.x/avataaars/svg?seed=${item['userName']}",
+                ),
               ),
             ),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Expanded(
-                      child: Text(
-                        isAccepted
-                            ? "${item['userName']} & You Matched! ⚡"
-                            : "${item['userName']} is Interested",
-                        style: const TextStyle(
-                          color: Color(0xFFF8FAFC),
-                          fontWeight: FontWeight.w800,
-                          fontSize: 15,
-                        ),
-                      ),
-                    ),
-                    Text(
-                      _formatTime(item['createdAt']),
-                      style: const TextStyle(color: Color(0xFF475569), fontSize: 11),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  isAccepted
-                      ? "Aap aur ${item['userName']} ab ${item['sparkCategory']} ke liye connect ho gaye hain!"
-                      : "${item['userName']} aapke ${item['sparkCategory']} spark mein aana chahta hai.",
-                  style: const TextStyle(
-                    color: Color(0xFF94A3B8),
-                    fontSize: 13,
-                  ),
-                ),
-                if (isPending && isReceived) ...[
-                  const SizedBox(height: 14),
-                  ElevatedButton.icon(
-                    onPressed: () => _handleAccept(item['matchId']),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF3B82F6),
-                      minimumSize: const Size(double.infinity, 40),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                    ),
-                    icon: const Icon(Icons.check, size: 16, color: Colors.white),
-                    label: const Text(
-                      "Accept Interest",
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ],
-                if (isAccepted) ...[
-                  const SizedBox(height: 14),
-                  OutlinedButton.icon(
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => ChatRoomScreen(
-                            chatRoomId: item['chatRoomId'],
-                            userName: item['userName'],
-                            otherUserPhone: item['otherUserPhone'],
-                            instagramHandle: item['instagramHandle'] ?? "",
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          isAccepted
+                              ? "${item['userName'] ?? 'Someone'} & You Matched! ⚡"
+                              : "${item['userName'] ?? 'Someone'} is Interested",
+                          style: const TextStyle(
+                            color: Color(0xFFF8FAFC),
+                            fontWeight: FontWeight.w800,
+                            fontSize: 15,
                           ),
                         ),
-                      );
-                    },
-                    style: OutlinedButton.styleFrom(
-                      side: const BorderSide(color: Color(0xFF3B82F6)),
-                      minimumSize: const Size(150, 40),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
                       ),
-                    ),
-                    icon: const Icon(
-                      Icons.message_outlined,
-                      size: 16,
-                      color: Color(0xFF3B82F6),
-                    ),
-                    label: const Text(
-                      "Start Chatting",
-                      style: TextStyle(
-                        color: Color(0xFF3B82F6),
-                        fontWeight: FontWeight.bold,
+                      Text(
+                        _formatTime(item['createdAt']),
+                        style: const TextStyle(color: Color(0xFF475569), fontSize: 11),
                       ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    isAccepted
+                        ? "You & ${item['userName'] ?? 'User'} just sparked a connection for ${item['sparkCategory']}!"
+                        : "${item['userName'] ?? 'User'} is interested in your ${item['sparkCategory']} Spark! ✨",
+                    style: const TextStyle(
+                      color: Color(0xFF94A3B8),
+                      fontSize: 13,
                     ),
                   ),
+                  if (isPending && isReceived) ...[
+                    const SizedBox(height: 14),
+                    ElevatedButton.icon(
+                      onPressed: () => _handleAccept(item['matchId']),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF3B82F6),
+                        minimumSize: const Size(double.infinity, 40),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                      icon: const Icon(Icons.check, size: 16, color: Colors.white),
+                      label: const Text(
+                        "Accept Interest",
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
+                  if (isAccepted) ...[
+                    const SizedBox(height: 14),
+                    OutlinedButton.icon(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => ChatRoomScreen(
+                              chatRoomId: item['chatRoomId'],
+                              userName: item['userName'] ?? "User",
+                              otherUserPhone: item['otherUserPhone'],
+                              instagramHandle: item['instagramHandle'] ?? "",
+                            ),
+                          ),
+                        );
+                      },
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: Color(0xFF3B82F6)),
+                        minimumSize: const Size(150, 40),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                      icon: const Icon(
+                        Icons.message_outlined,
+                        size: 16,
+                        color: Color(0xFF3B82F6),
+                      ),
+                      label: const Text(
+                        "Start Chatting",
+                        style: TextStyle(
+                          color: Color(0xFF3B82F6),
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
                 ],
-              ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -373,7 +380,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
               ),
               SizedBox(height: 12),
               Text(
-                "Koi notification nahi hai bhai!",
+                "All quiet here! No new sparks yet. 🧊",
                 style: TextStyle(color: Color(0xFF475569), fontSize: 16),
               ),
             ],

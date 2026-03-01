@@ -69,10 +69,24 @@ class _UserProfileModalState extends State<UserProfileModal> {
     }
   }
 
-  void _launchInstagram(String handle) async {
-    final Uri url = Uri.parse("https://www.instagram.com/$handle/");
-    if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
-      debugPrint("Could not launch $url");
+
+  Future<void> _launchInstagram(String handle) async {
+    // Humne handle se URL banaya
+    final String url = "https://www.instagram.com/$handle/";
+    final Uri uri = Uri.parse(url);
+
+    try {
+      // mode: LaunchMode.externalApplication se ye koshish karega ki direct App khule
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(
+          uri,
+          mode: LaunchMode.externalApplication,
+        );
+      } else {
+        debugPrint("Could not launch Instagram URL");
+      }
+    } catch (e) {
+      debugPrint("Error launching Instagram: $e");
     }
   }
 
@@ -265,9 +279,16 @@ class _UserProfileModalState extends State<UserProfileModal> {
                                 Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    Image.network('https://upload.wikimedia.org/wikipedia/commons/thumb/a/a5/Instagram_icon.png/600px-Instagram_icon.png', height: 18),
+                                    // Instagram Icon
+                                    Image.network(
+                                        'https://upload.wikimedia.org/wikipedia/commons/thumb/a/a5/Instagram_icon.png/600px-Instagram_icon.png',
+                                        height: 18
+                                    ),
                                     const SizedBox(width: 8),
-                                    Text(instaHandle, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700)),
+                                    Text(
+                                        "$instaHandle", // '@' laga diya premium feel ke liye
+                                        style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700)
+                                    ),
                                   ],
                                 ),
                                 const SizedBox(height: 4),

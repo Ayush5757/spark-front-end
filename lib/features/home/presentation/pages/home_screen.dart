@@ -113,14 +113,14 @@ class _HomeScreenState extends State<HomeScreen> {
       if (permission == LocationPermission.denied) {
         _showSnackBar(
           "Permission Denied",
-          "Nearby sparks dekhne ke liye permission chahiye.",
+          "Grant location access to discover sparks around you. ✨",
         );
         return false;
       }
     }
 
     if (permission == LocationPermission.deniedForever) {
-      _showSnackBar("Settings", "App settings se location enable karein.");
+      _showSnackBar("Settings", "Location is off. Fix it in settings to see who's around.");
       return false;
     }
 
@@ -176,7 +176,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 Icon(Icons.location_off, color: Colors.redAccent),
                 SizedBox(width: 10),
                 Text(
-                  "Location Off Hai",
+                  "Location Services Disabled",
                   style: TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.bold,
@@ -185,7 +185,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ],
             ),
             content: const Text(
-              "Bhai, settings me jaake GPS on karo. On karte hi ye popup khud hat jayega.",
+              "To find sparks around you, please activate location services. This window will close as soon as you're online.",
               style: TextStyle(color: Color(0xFF8B949E)),
             ),
             actions: [
@@ -194,7 +194,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   await Geolocator.openLocationSettings();
                 },
                 child: const Text(
-                  "Settings Kholo",
+                  "Go to Settings",
                   style: TextStyle(color: Color(0xFF3B82F6)),
                 ),
               ),
@@ -212,7 +212,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     isDialogVisible = false;
                     Navigator.of(context).pop();
                   } else {
-                    _showSnackBar("Abhi bhi off hai", "Pehle GPS on karo!");
+                    _showSnackBar("","Still waiting for GPS signal... 📡");
                   }
                 },
                 child: const Text("OK", style: TextStyle(color: Colors.black)),
@@ -251,12 +251,15 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // --- API CALL: Initial Fetch with Pagination Support ---
   Future<void> _fetchFeed() async {
+    if (!mounted) return;
+
     setState(() {
-      isLoading = true;
+      // Sirf tab loader dikhao jab list empty ho, taaki RefreshIndicator smooth chale
+      if (sparks.isEmpty) isLoading = true;
       currentPage = 0;
       hasMore = true;
-      // sparks.clear(); // Clear optionally, loader will handle visibility
     });
+
     try {
       final response = await _apiService.dio.get(
         "/api/sparks/feed/filter",
@@ -379,7 +382,7 @@ class _HomeScreenState extends State<HomeScreen> {
       );
 
       String successMsg = response.data.toString().contains("success")
-          ? "Interest bhej diya gaya hai!"
+          ? "Request shot! 🚀 Hope they vibe back."
           : response.data.toString();
 
       _showSnackBar("Sent! 🔥", successMsg);
@@ -388,14 +391,14 @@ class _HomeScreenState extends State<HomeScreen> {
       // 2. Error aane par rollback
       setState(() => sparks = originalSparks);
 
-      String errorMessage = "Request fail ho gayi.";
+      String errorMessage = "The spark didn't light up. Try again? ⚡";
       if (e.response != null) {
         errorMessage = e.response?.data.toString() ?? errorMessage;
       }
-      _showSnackBar("Ruk Jao!", errorMessage);
+      _showSnackBar("Whoa! Slow down, you’re moving too fast. 🐢", errorMessage);
     } catch (e) {
       setState(() => sparks = originalSparks);
-      _showSnackBar("Oops!", "Kuch galat hua.");
+      _showSnackBar("Oops!", "Something went south. ⚠️ We're on it!");
     }
   }
 
@@ -417,6 +420,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     backgroundColor: cardBg,
                     child: sparks.isEmpty && !isLoading
                         ? ListView(
+                      physics: const AlwaysScrollableScrollPhysics(), // Zaroori hai refresh ke liye
                       children: const [
                         SizedBox(height: 200),
                         Center(
@@ -429,6 +433,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     )
                         : ListView.builder(
                       controller: _scrollController, // Controller attached
+                      physics: const AlwaysScrollableScrollPhysics(), // Zaroori hai refresh ke liye
                       padding: const EdgeInsets.all(16),
                       // Current list + loader if hasMore
                       itemCount: sparks.length + (isMoreLoading ? 1 : 0),
@@ -454,7 +459,8 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
 
           // --- FULL SCREEN LOADER OVERLAY ---
-          if (isLoading)
+          // Sirf tab dikhega jab sparks empty ho, taaki pull-to-refresh block na ho
+          if (isLoading && sparks.isEmpty)
             Container(
               color: Colors.black.withOpacity(0.5),
               child: Center(
@@ -521,8 +527,8 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ],
           ),
-          // Mini Loader in Header (Optional since we have full screen now)
-          if (isLoading)
+          // Mini Loader in Header
+          if (isLoading && sparks.isNotEmpty)
             SizedBox(
               width: 24,
               height: 24,
@@ -539,90 +545,202 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildSparkCard(dynamic item) {
     final cat = _getCategoryData(item['category'] ?? "DEFAULT");
     bool alreadySent = item['interested'] ?? false;
+    final Color sparkGreen = const Color(0xFF2DD4BF);
+
+    // Data extraction from your JSON
+    String creatorGender = item['gender'] ?? "HIDDEN";
+    String lookingFor = item['genderPreference'] ?? "Everyone";
+    String titleText = item['title'] ?? "";
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 16),
+      margin: const EdgeInsets.only(bottom: 14, left: 12, right: 12),
       decoration: BoxDecoration(
-        color: cardBg,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: borderColor),
+        color: const Color(0xFF161B22),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white.withOpacity(0.05), width: 1),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.2),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          )
+        ],
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: Stack(
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Row(
-                  children: [
-                    const CircleAvatar(
-                      radius: 16,
-                      backgroundColor: Color(0xFF30363D),
-                      child: Icon(Icons.person, size: 14, color: Colors.white),
-                    ),
-                    const SizedBox(width: 10),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          item['creatorName'] ?? "User",
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const Text(
-                          "is looking for a vibe",
-                          style: TextStyle(
-                            color: Color(0xFF8B949E),
-                            fontSize: 11,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: cat['color'].withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Icon(cat['icon'], color: cat['color'], size: 24),
-                ),
-              ],
-            ),
-            const SizedBox(height: 15),
-            Text(
-              item['title'] ?? "",
-              style: const TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
+            // Subtle Category Background Glow
+            Positioned(
+              right: -15,
+              top: -15,
+              child: Icon(
+                cat['icon'],
+                size: 80,
+                color: cat['color'].withOpacity(0.03),
               ),
             ),
-            const SizedBox(height: 15),
-            const Divider(color: Color(0xFF30363D)),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Row(
-                  children: [
-                    const Icon(Icons.group, size: 14, color: Color(0xFF8B949E)),
-                    const SizedBox(width: 6),
-                    Text(
-                      "Interested in ${item['genderPreference'] ?? "Everyone"}",
-                      style: const TextStyle(
-                        color: Color(0xFF8B949E),
-                        fontSize: 12,
+
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // --- Top Section: Profile, Gender & Category ---
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          const SizedBox(width: 10),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Text(
+                                    item['creatorName'] ?? "User",
+                                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Icon(
+                                    creatorGender == "FEMALE" ? Icons.female : Icons.male,
+                                    size: 12,
+                                    color: creatorGender == "FEMALE" ? Colors.pinkAccent : Colors.blueAccent,
+                                  ),
+                                ],
+                              ),
+                              Text(
+                                creatorGender,
+                                style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 9, letterSpacing: 0.5),
+                              ),
+                            ],
+                          ),
+                        ],
                       ),
-                    ),
-                  ],
-                ),
-                _buildJoinButton(alreadySent, item['id']),
-              ],
+
+                      // Category Badge
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: cat['color'].withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: cat['color'].withOpacity(0.2), width: 0.5),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(cat['icon'], color: cat['color'], size: 12),
+                            const SizedBox(width: 5),
+                            Text(
+                              item['category'] ?? "VIBE",
+                              style: TextStyle(color: cat['color'], fontSize: 10, fontWeight: FontWeight.w800),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 14),
+
+                  // --- Middle Section: Title with Maximize Logic ---
+                  StatefulBuilder(
+                      builder: (context, setCardState) {
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            LayoutBuilder(
+                              builder: (context, constraints) {
+                                final span = TextSpan(text: titleText, style: const TextStyle(fontSize: 14));
+                                final tp = TextPainter(text: span, maxLines: 2, textDirection: TextDirection.ltr);
+                                tp.layout(maxWidth: constraints.maxWidth);
+
+                                bool exceeds = tp.didExceedMaxLines;
+
+                                return Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      titleText,
+                                      maxLines: item['isExpanded'] == true ? null : 2,
+                                      overflow: item['isExpanded'] == true ? TextOverflow.visible : TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w400,
+                                        color: Colors.white,
+                                        height: 1.4,
+                                      ),
+                                    ),
+                                    if (exceeds && item['isExpanded'] != true)
+                                      GestureDetector(
+                                        onTap: () => setCardState(() => item['isExpanded'] = true),
+                                        child: Padding(
+                                          padding: const EdgeInsets.only(top: 4),
+                                          child: Text(
+                                            "read more...",
+                                            style: TextStyle(color: sparkGreen, fontSize: 12, fontWeight: FontWeight.bold),
+                                          ),
+                                        ),
+                                      ),
+                                    if (item['isExpanded'] == true)
+                                      GestureDetector(
+                                        onTap: () => setCardState(() => item['isExpanded'] = false),
+                                        child: Padding(
+                                          padding: const EdgeInsets.only(top: 4),
+                                          child: Text(
+                                            "show less",
+                                            style: TextStyle(color: sparkGreen.withOpacity(0.7), fontSize: 12),
+                                          ),
+                                        ),
+                                      ),
+                                  ],
+                                );
+                              },
+                            ),
+                          ],
+                        );
+                      }
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  // --- Bottom Section: Interest & Join ---
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      // Preference Pill
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.05),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.auto_awesome, size: 12, color: Color(0xFF2DD4BF)),
+                            const SizedBox(width: 6),
+                            Text(
+                              "Vibe with: ",
+                              style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 11),
+                            ),
+                            Text(
+                              lookingFor,
+                              style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      // The Join Button
+                      Transform.scale(
+                        scale: 0.85,
+                        alignment: Alignment.centerRight,
+                        child: _buildJoinButton(alreadySent, item['id']),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ],
         ),
@@ -654,7 +772,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             const SizedBox(width: 6),
             Text(
-              alreadySent ? "Sent" : "Join",
+              alreadySent ? "Sent" : "Show Interest",
               style: TextStyle(
                 color: alreadySent
                     ? const Color(0xFF8B949E)
@@ -720,8 +838,8 @@ class _HomeScreenState extends State<HomeScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          "$title: $msg",
-          style: const TextStyle(color: Colors.white), // Added white color here 🔥
+          msg,
+          style: const TextStyle(color: Colors.white),
         ),
         backgroundColor: cardBg,
         behavior: SnackBarBehavior.floating,

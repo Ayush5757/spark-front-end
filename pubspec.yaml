@@ -61,6 +61,7 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
+  flutter_native_splash: ^2.4.7
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
@@ -106,10 +107,20 @@ flutter:
   # see https://flutter.dev/to/font-from-package
 
 flutter_launcher_icons:
-  android: "launcher_icon"
+  android: true
   ios: true
-  image_path: "assets/images/logo-spark.jpg"
+  image_path: "assets/images/logo-spark.png"
   min_sdk_android: 21
   adaptive_icon_background: "#000000" # Tera black theme color
-  adaptive_icon_foreground: "assets/images/logo-spark.jpg"
-  adaptive_icon_foreground_scale: 1.2
+  adaptive_icon_foreground: "assets/images/logo-spark.png"
+  adaptive_icon_foreground_scale: 1.5
+
+flutter_native_splash:
+  color: "#000000" # Tera Black background color
+  image: assets/images/spark_splash_screen_logo.png # Tera logo path
+  android_gravity: center
+  ios_content_mode: center
+  android_12:
+    image: assets/images/spark_splash_screen_logo.png
+    color: "#000000"
+  fullscreen: true

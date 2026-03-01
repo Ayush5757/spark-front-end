@@ -55,13 +55,12 @@ class _MainNavigationState extends ConsumerState<MainNavigation> {
 
         if (authToken != null) {
           try {
-            // Backend endpoint jo tumne SparkController mein banaya hai
             await Dio().post(
               "http://192.168.29.114:8080/api/sparks/update-fcm-token",
               data: fcmToken,
               options: Options(
                 headers: {"Authorization": "Bearer $authToken"},
-                contentType: "text/plain", // String bhej rahe hain
+                contentType: "text/plain",
               ),
             );
             debugPrint("FCM Token synced with Backend ✅");
@@ -92,28 +91,27 @@ class _MainNavigationState extends ConsumerState<MainNavigation> {
                 final Map<String, dynamic> newMsg = jsonDecode(frame.body!);
                 debugPrint("📩 Socket Data: $newMsg");
 
-                // 1. notificationType ko string mein convert karke handle karo (Best Practice)
                 final String type = (newMsg['notificationType'] ?? '1').toString();
 
                 if (type == '3') {
-                  // ✅ HOME DOT: Spark Notification logic
+                  // HOME DOT: Index 0
                   ref.read(HomeNotification.notifier).state = true;
                   if (_currentIndex != 0) {
                     _showTopNotification(newMsg);
                   }
                 }
                 else if (newMsg['id'] != null && type == '1') {
-                  // ✅ CHAT DOT: Normal Message (Type 1)
+                  // CHAT DOT: Index 2 (Find ke baad)
                   ref.read(hasNewMessageProvider.notifier).state = true;
                   ref.read(lastMessageProvider.notifier).state = newMsg;
-                  if (_currentIndex != 1) {
+                  if (_currentIndex != 2) {
                     _showTopNotification(newMsg);
                   }
                 }
                 else {
-                  // ✅ ALERTS DOT: Baki sab (Likes, Interest etc.)
+                  // ALERTS DOT: Index 3
                   ref.read(newNotification.notifier).state = true;
-                  if (_currentIndex != 2) {
+                  if (_currentIndex != 3) {
                     _showTopNotification(newMsg);
                   }
                 }
@@ -128,19 +126,17 @@ class _MainNavigationState extends ConsumerState<MainNavigation> {
     stompClient?.activate();
   }
 
-  // show notification popup
   void _showTopNotification(Map<String, dynamic> msg) {
     OverlayEntry overlayEntry = OverlayEntry(
       builder: (context) => Positioned(
-        top: MediaQuery.of(context).padding.top + 10, // Status bar ke thoda niche
+        top: MediaQuery.of(context).padding.top + 10,
         left: 15,
         right: 15,
         child: Material(
           color: Colors.transparent,
           child: Container(
             decoration: BoxDecoration(
-              // Blue gradient ya solid jo tujhe pasand ho
-              color: const Color(0xFF1E293B).withOpacity(0.95), // Dark Premium Look
+              color: const Color(0xFF1E293B).withOpacity(0.95),
               borderRadius: BorderRadius.circular(20),
               border: Border.all(color: Colors.white10, width: 0.5),
               boxShadow: [
@@ -155,7 +151,6 @@ class _MainNavigationState extends ConsumerState<MainNavigation> {
               padding: const EdgeInsets.all(12.0),
               child: Row(
                 children: [
-                  // 1. Icon Section (Symbol)
                   Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
@@ -169,26 +164,25 @@ class _MainNavigationState extends ConsumerState<MainNavigation> {
                     ),
                   ),
                   const SizedBox(width: 12),
-
-                  // 2. Text Section
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Text(
-                          msg['title'] ?? "Notification", // Title
+                          msg['title'] ?? "Notification",
                           style: const TextStyle(
                             color: Colors.white,
                             fontWeight: FontWeight.bold,
+
                             fontSize: 14,
                           ),
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          "${msg['content']}", // Main Message
+                          "${msg['content']}",
                           style: TextStyle(
-                            color: Colors.white.withOpacity(0.8),
+                            color: Colors.white,
                             fontSize: 13,
                           ),
                           maxLines: 2,
@@ -197,11 +191,9 @@ class _MainNavigationState extends ConsumerState<MainNavigation> {
                       ],
                     ),
                   ),
-
-                  // 3. Small Close or Time (Optional)
                   Icon(
                     Icons.drag_handle_rounded,
-                    color: Colors.white.withOpacity(0.3),
+                    color: Colors.white,
                     size: 20,
                   ),
                 ],
@@ -213,8 +205,6 @@ class _MainNavigationState extends ConsumerState<MainNavigation> {
     );
 
     Overlay.of(context).insert(overlayEntry);
-
-    // 3 second rakhte hain taaki user padh sake
     Future.delayed(const Duration(seconds: 3), () {
       overlayEntry.remove();
     });
@@ -232,17 +222,19 @@ class _MainNavigationState extends ConsumerState<MainNavigation> {
   }
 
   void _onItemTapped(int index) {
-    if (index == 1) {
-      ref.read(hasNewMessageProvider.notifier).state =
-      false; // Reset chat dot on click
-    }
-    // ALERT DOT RESET: Jab Alerts tab (index 2) par click ho
-    if (index == 2) {
-      ref.read(newNotification.notifier).state = false;
-    }
-
+    // Index 0: Home Reset
     if (index == 0) {
       ref.read(HomeNotification.notifier).state = false;
+    }
+    // Index 1: Find (Yahan koi dot reset nahi hai)
+
+    // Index 2: Chat Reset
+    if (index == 2) {
+      ref.read(hasNewMessageProvider.notifier).state = false;
+    }
+    // Index 3: Alerts Reset
+    if (index == 3) {
+      ref.read(newNotification.notifier).state = false;
     }
 
     _pageController.animateToPage(
@@ -255,7 +247,7 @@ class _MainNavigationState extends ConsumerState<MainNavigation> {
   @override
   Widget build(BuildContext context) {
     final hasNewMsg = ref.watch(hasNewMessageProvider);
-    final hasAlert = ref.watch(newNotification); // Alerts provider watch kiya
+    final hasAlert = ref.watch(newNotification);
     final hasHomeAlert = ref.watch(HomeNotification);
 
     return Scaffold(
@@ -283,11 +275,11 @@ class _MainNavigationState extends ConsumerState<MainNavigation> {
           selectedItemColor: activeColor,
           unselectedItemColor: inactiveColor,
           items: [
+            // Home - Index 0
             BottomNavigationBarItem(
               icon: Stack(
                 children: [
                   const Icon(Icons.home_filled),
-                  // ALERT DOT UI: Agar naya notification hai toh blue dot dikhao
                   if (hasHomeAlert)
                     Positioned(
                       right: 0,
@@ -305,27 +297,12 @@ class _MainNavigationState extends ConsumerState<MainNavigation> {
               ),
               label: 'Home',
             ),
-            BottomNavigationBarItem(
-              icon: Stack(
-                children: [
-                  const Icon(Icons.search),
-                  if (hasHomeAlert)
-                    Positioned(
-                      right: 0,
-                      top: 0,
-                      child: Container(
-                        width: 8,
-                        height: 8,
-                        decoration: const BoxDecoration(
-                          color: Colors.blue,
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                    ),
-                ],
-              ),
+            // Find - Index 1 (No Dot)
+            const BottomNavigationBarItem(
+              icon: Icon(Icons.search),
               label: 'Find',
             ),
+            // Chats - Index 2
             BottomNavigationBarItem(
               icon: Stack(
                 children: [
@@ -347,11 +324,11 @@ class _MainNavigationState extends ConsumerState<MainNavigation> {
               ),
               label: 'Chats',
             ),
+            // Alerts - Index 3
             BottomNavigationBarItem(
               icon: Stack(
                 children: [
                   const Icon(Icons.notifications),
-                  // ALERT DOT UI: Agar naya notification hai toh blue dot dikhao
                   if (hasAlert)
                     Positioned(
                       right: 0,
@@ -369,6 +346,7 @@ class _MainNavigationState extends ConsumerState<MainNavigation> {
               ),
               label: 'Alerts',
             ),
+            // Profile - Index 4
             const BottomNavigationBarItem(
               icon: Icon(Icons.person),
               label: 'Profile',

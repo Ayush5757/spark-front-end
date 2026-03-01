@@ -6,6 +6,7 @@ import 'package:spark/features/auth/presentation/pages/profile_setup_screen.dart
 import 'package:spark/features/home/presentation/pages/home_screen.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../providers/auth_provider.dart';
+import '../../../home/presentation/pages/main_navigation.dart';
 
 class OnboardingScreen extends ConsumerStatefulWidget {
   const OnboardingScreen({super.key});
@@ -80,24 +81,10 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  const SizedBox(height: 60),
-                  Container(
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: AppColors.gradientColors,
-                      ),
-                      borderRadius: BorderRadius.circular(22),
-                    ),
-                    child: const Icon(
-                      Icons.flash_on,
-                      size: 40,
-                      color: Colors.white,
-                    ),
-                  ),
+                 
                   const SizedBox(height: 16),
                   Text(
-                    "Spark",
+                    "Spark it 🔥",
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 42,
                       fontWeight: FontWeight.w900,
@@ -105,7 +92,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                     ),
                   ),
                   Text(
-                    "Connect. Meet. Spark.",
+                    "Connect 💬. Meet 🤝. Spark. ✨",
                     style: GoogleFonts.plusJakartaSans(
                       color: AppColors.textGrey,
                       fontSize: 16,
@@ -283,7 +270,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
           if (!mounted) return;
           Navigator.pushReplacement(
             context,
-            MaterialPageRoute(builder: (context) => const HomeScreen()),
+            MaterialPageRoute(builder: (context) => const MainNavigation()),
           );
         }
       } else {

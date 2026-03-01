@@ -113,7 +113,7 @@ class _CreateSparkModalState extends State<CreateSparkModal> {
   Future<void> _handlePost() async {
     final text = _contentController.text.trim();
     if (text.isEmpty) {
-      _showAlert("Ruko bhai!", "Pehle batao toh ki plan kya hai.");
+      _showAlert("Wait!", "Set the stage! What's the plan for today? ⚡");
       return;
     }
 
@@ -122,7 +122,7 @@ class _CreateSparkModalState extends State<CreateSparkModal> {
     try {
       bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) {
-        _showAlert("GPS Off", "Bhai pehle location services on kar lo.");
+        _showAlert("GPS Off", "GPS Offline. Let the world find your Spark! 📡");
         setState(() => isLoading = false);
         return;
       }
@@ -133,7 +133,7 @@ class _CreateSparkModalState extends State<CreateSparkModal> {
         if (permission == LocationPermission.denied) {
           _showAlert(
             "Permission Denied",
-            "Location ke bina Spark nahi jala sakte.",
+            "Permission Denied, No Location no Spark. Stay on the map! 📍",
           );
           setState(() => isLoading = false);
           return;
@@ -141,7 +141,7 @@ class _CreateSparkModalState extends State<CreateSparkModal> {
       }
 
       if (permission == LocationPermission.deniedForever) {
-        _showAlert("Settings", "App settings se location permission on karo.");
+        _showAlert("Settings", "Ignition Failed. Grant location access in Settings.");
         setState(() => isLoading = false);
         return;
       }
@@ -167,7 +167,7 @@ class _CreateSparkModalState extends State<CreateSparkModal> {
         Navigator.pop(context, true);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: const Text("Boom! ⚡ Spark ignited!"),
+            content: const Text("⚡ Spark ignited!"),
             backgroundColor: themeBlue,
             behavior: SnackBarBehavior.floating,
           ),
@@ -175,7 +175,7 @@ class _CreateSparkModalState extends State<CreateSparkModal> {
       }
     } catch (e) {
       debugPrint("Create Spark Error: $e");
-      _showAlert("Oops!", "Spark ignite nahi ho paya. Connection check karo!");
+      _showAlert("Oops!", "Spark already active! ⚡ You can’t ignite another until the current one expires, or check your connection.");
     } finally {
       if (mounted) setState(() => isLoading = false);
     }
@@ -527,7 +527,7 @@ class _CreateSparkModalState extends State<CreateSparkModal> {
     return TextField(
       controller: _contentController,
       maxLines: 4,
-      maxLength: 100,
+      maxLength: 150,
       style: const TextStyle(
         color: Colors.white,
         fontSize: 17,

@@ -4,6 +4,7 @@ import 'package:spark/models/nearby_user.dart';
 import '../../../../core/network/api_service.dart';
 import 'user_profile_sheet.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class FindPeopleScreen extends StatefulWidget {
   const FindPeopleScreen({super.key});
@@ -74,7 +75,7 @@ class _FindPeopleScreenState extends State<FindPeopleScreen> {
         "radius": selectedRadius,
         "name": searchQuery,
         "page": 0,
-        "size": 15,
+        "size": 10,
       });
 
       if (response.data['success'] == true) {
@@ -87,7 +88,7 @@ class _FindPeopleScreenState extends State<FindPeopleScreen> {
         });
       }
     } catch (e) {
-      _showErrorSnackBar("Radar range se bahar hai! 📡");
+      _showErrorSnackBar("Out of range! 📡 Let's try expanding your horizons.");
     } finally {
       if (mounted) setState(() { isLoading = false; isRefreshing = false; });
     }
@@ -113,7 +114,7 @@ class _FindPeopleScreenState extends State<FindPeopleScreen> {
         "radius": selectedRadius,
         "name": searchQuery,
         "page": nextPage,
-        "size": 15,
+        "size": 10,
       });
 
       if (response.data['success'] == true) {
@@ -149,6 +150,8 @@ class _FindPeopleScreenState extends State<FindPeopleScreen> {
         SnackBar(content: Text(msg), backgroundColor: Colors.redAccent)
     );
   }
+
+
 
   // --- UI Layout ---
 
@@ -259,7 +262,7 @@ class _FindPeopleScreenState extends State<FindPeopleScreen> {
           SizedBox(height: MediaQuery.of(context).size.height * 0.2),
           const Center(child: Text("❄️", style: TextStyle(fontSize: 50))),
           const SizedBox(height: 10),
-          const Center(child: Text("Aas paas koi nahi mila", style: TextStyle(color: Colors.white60))),
+          const Center(child: Text("It’s a bit quiet here. 🧊 Try moving to a livelier spot!", style: TextStyle(color: Colors.white60))),
         ],
       );
     }
@@ -331,19 +334,7 @@ class _FindPeopleScreenState extends State<FindPeopleScreen> {
                     child: const Icon(Icons.person, color: Colors.white54),
                   ),
                 ),
-                Positioned(
-                  bottom: 0,
-                  right: 0,
-                  child: Container(
-                    width: 14,
-                    height: 14,
-                    decoration: BoxDecoration(
-                      color: Colors.green,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: bgBlack, width: 2.5),
-                    ),
-                  ),
-                )
+
               ],
             ),
             const SizedBox(width: 15),
@@ -362,7 +353,7 @@ class _FindPeopleScreenState extends State<FindPeopleScreen> {
                   Text(user.bio, style: const TextStyle(color: Colors.white54, fontSize: 13), maxLines: 1, overflow: TextOverflow.ellipsis),
                   if (user.instaHandle != null) ...[
                     const SizedBox(height: 6),
-                    Text("@${user.instaHandle}", style: TextStyle(color: accentColor, fontSize: 11, fontWeight: FontWeight.bold)),
+                    Text("${user.instaHandle}", style: TextStyle(color: accentColor, fontSize: 11, fontWeight: FontWeight.bold)),
                   ],
                 ],
               ),
