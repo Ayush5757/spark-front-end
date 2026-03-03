@@ -27,7 +27,7 @@ class _HomeScreenState extends State<HomeScreen> {
   // -----------------------------
 
   int? interestLoadingId;
-  String selectedFilter = "EVERYONE"; // Default filter
+  String selectedFilter = "FEMALE"; // Default filter
   final List<String> filterOptions = ["MALE", "FEMALE", "EVERYONE"];
 
 
@@ -402,6 +402,18 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  String getInitials(String name) {
+    if (name.isEmpty) return "U";
+    List<String> nameParts = name.trim().split(" ");
+    if (nameParts.length > 1) {
+      return (nameParts[0][0] + nameParts[1][0]).toUpperCase();
+    } else {
+      return nameParts[0].length > 1
+          ? nameParts[0].substring(0, 2).toUpperCase()
+          : nameParts[0][0].toUpperCase();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -599,7 +611,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               Row(
                                 children: [
                                   Text(
-                                    item['creatorName'] ?? "User",
+                                    getInitials(item['creatorName'] ?? "User"),
                                     style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
                                   ),
                                   const SizedBox(width: 4),

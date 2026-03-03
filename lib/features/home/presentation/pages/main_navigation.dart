@@ -11,6 +11,7 @@ import 'package:stomp_dart_client/stomp_dart_client.dart';
 import './chats_screen.dart';
 import '../../../chat/data/chat_provider.dart';
 import 'find_people.dart';
+import '../../../../core/network/api_service.dart';
 
 class MainNavigation extends ConsumerStatefulWidget {
   const MainNavigation({super.key});
@@ -23,6 +24,7 @@ class _MainNavigationState extends ConsumerState<MainNavigation> {
   int _currentIndex = 0;
   final PageController _pageController = PageController();
   StompClient? stompClient;
+  final ApiService _apiService = ApiService();
 
   // Design Colors
   final Color bgDark = const Color(0xFF0A0C10);
@@ -55,13 +57,10 @@ class _MainNavigationState extends ConsumerState<MainNavigation> {
 
         if (authToken != null) {
           try {
-            await Dio().post(
-              "http://192.168.29.114:8080/api/sparks/update-fcm-token",
-              data: fcmToken,
-              options: Options(
-                headers: {"Authorization": "Bearer $authToken"},
-                contentType: "text/plain",
-              ),
+            await _apiService.dio.post(
+              "/api/sparks/update-fcm-token",
+              data: authToken,
+              options: Options(contentType: "text/plain"),
             );
             debugPrint("FCM Token synced with Backend ✅");
           } catch (e) {
