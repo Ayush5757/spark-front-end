@@ -4,7 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 class ApiService {
   final Dio _dio = Dio(
     BaseOptions(
-      baseUrl: "http://192.168.29.114:8080",
+      baseUrl: "https://sparkbackend-production.up.railway.app",
       connectTimeout: const Duration(seconds: 30),
       receiveTimeout: const Duration(seconds: 30),
     ),
@@ -28,7 +28,6 @@ class ApiService {
           if (e.response?.statusCode == 401) {
             print("erroronprint : ");
             print(e);
-            // Agar token expire ho gaya toh logout logic yahan aayega
           }
           return handler.next(e);
         },

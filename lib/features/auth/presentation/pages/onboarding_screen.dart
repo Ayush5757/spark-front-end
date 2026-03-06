@@ -39,11 +39,8 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   bool _isInputValid() {
     final input = _inputController.text.trim();
     if (isOtpSent) {
-      // OTP validation: Exactly 6 digits hona chahiye
       return input.length == 6 && RegExp(r'^[0-9]+$').hasMatch(input);
     } else {
-      // Indian Phone Validation: Starts with 6-9 and exactly 10 digits
-      // Agar user +91 likhta hai toh usko handle karne ke liye trim/replace logic
       String cleanPhone = input.replaceAll(RegExp(r'\D'), ''); // Sirf numbers rakho
       if (cleanPhone.startsWith('91') && cleanPhone.length == 12) {
         cleanPhone = cleanPhone.substring(2);
@@ -259,6 +256,9 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString('auth_token', token);
         await prefs.setString('user_phone', savedPhone);
+
+        final expiryDate = DateTime.now().add(const Duration(days: 13));
+        await prefs.setString('token_expiry', expiryDate.toIso8601String());
 
         if (isNewUser) {
           if (!mounted) return;

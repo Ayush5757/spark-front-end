@@ -65,7 +65,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
   void _connectWebSocket(String token) {
     stompClient = StompClient(
       config: StompConfig(
-        url: 'ws://192.168.29.114:8080/ws-spark/websocket',
+        url: 'wss://sparkbackend-production.up.railway.app/ws-spark/websocket',
         onConnect: (frame) {
           debugPrint("✅ Connected to WebSocket");
           stompClient?.subscribe(

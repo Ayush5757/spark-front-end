@@ -34,8 +34,30 @@ class _MainNavigationState extends ConsumerState<MainNavigation> {
   @override
   void initState() {
     super.initState();
+    _checkTokenExpiry();
     _initGlobalSocket();
     _setupFCM();
+  }
+
+  Future<void> _checkTokenExpiry() async {
+    final prefs = await SharedPreferences.getInstance();
+    final String? expiryStr = prefs.getString('token_expiry');
+
+    if (expiryStr != null) {
+      final DateTime expiryDate = DateTime.parse(expiryStr);
+      final DateTime now = DateTime.now();
+
+      if (now.isAfter(expiryDate)) {
+        _forceLogout(prefs);
+      }
+    }
+  }
+
+  Future<void> _forceLogout(SharedPreferences prefs) async {
+    await prefs.clear();
+    if (mounted) {
+      Navigator.pushNamedAndRemoveUntil(context, '/onboarding', (route) => false);
+    }
   }
 
   void _setupFCM() async {
@@ -80,7 +102,7 @@ class _MainNavigationState extends ConsumerState<MainNavigation> {
 
     stompClient = StompClient(
       config: StompConfig(
-        url: 'ws://192.168.29.114:8080/ws-spark/websocket',
+        url: 'wss://sparkbackend-production.up.railway.app/ws-spark/websocket',
         onConnect: (frame) {
           debugPrint("🌍 Global Socket Connected!");
           stompClient?.subscribe(

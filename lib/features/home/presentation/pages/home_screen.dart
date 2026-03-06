@@ -176,7 +176,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 Icon(Icons.location_off, color: Colors.redAccent),
                 SizedBox(width: 10),
                 Text(
-                  "Location Services Disabled",
+                  "Location Services",
                   style: TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.bold,
@@ -198,25 +198,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   style: TextStyle(color: Color(0xFF3B82F6)),
                 ),
               ),
-              // Optional: Manual button agar stream delay kare toh
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF2DD4BF),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                ),
-                onPressed: () async {
-                  bool enabled = await Geolocator.isLocationServiceEnabled();
-                  if (enabled) {
-                    isDialogVisible = false;
-                    Navigator.of(context).pop();
-                  } else {
-                    _showSnackBar("","Still waiting for GPS signal... 📡");
-                  }
-                },
-                child: const Text("OK", style: TextStyle(color: Colors.black)),
-              ),
+
             ],
           ),
         );
@@ -254,8 +236,7 @@ class _HomeScreenState extends State<HomeScreen> {
     if (!mounted) return;
 
     setState(() {
-      // Sirf tab loader dikhao jab list empty ho, taaki RefreshIndicator smooth chale
-      if (sparks.isEmpty) isLoading = true;
+      isLoading = true;
       currentPage = 0;
       hasMore = true;
     });

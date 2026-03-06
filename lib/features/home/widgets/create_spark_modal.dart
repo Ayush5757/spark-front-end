@@ -95,12 +95,12 @@ class _CreateSparkModalState extends State<CreateSparkModal> {
   final List<Map<String, dynamic>> genderData = [
     {
       "id": "MALE",
-      "icon": Icons.face_retouching_natural,
+      "icon": Icons.face_6,
       "color": Colors.blueAccent,
     },
     {
       "id": "FEMALE",
-      "icon": Icons.face_6,
+      "icon": Icons.face_retouching_natural,
       "color": Colors.pinkAccent,
     },
     {

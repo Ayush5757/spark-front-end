@@ -118,6 +118,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   }
 
   Future<void> _handleAccept(int matchId) async {
+    setState(() {
+      isLoading = true;
+    });
     try {
       await _apiService.dio.post("/api/matches/accept/$matchId");
       _showSuccessDialog("Matched! 🎉", "It’s a Match! 🎉 Start the spark now.");
@@ -125,6 +128,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     } on DioException catch (e) {
       String errorMsg = e.response?.data?.toString() ?? "Action failed. Let's give it another shot!";
       _showSnackBar("Oops!", errorMsg);
+      setState(() {
+        isLoading = false;
+      });
     }
   }
 
