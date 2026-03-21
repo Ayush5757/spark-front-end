@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:spark/features/auth/presentation/pages/profile_setup_screen.dart';
 import 'package:spark/features/home/presentation/pages/main_navigation.dart';
 import 'package:spark/firebase_options.dart';
 
@@ -20,9 +21,16 @@ void main() async {
   final prefs = await SharedPreferences.getInstance();
   final String? token = prefs.getString('auth_token');
 
-  Widget initialScreen = (token != null)
-      ? const MainNavigation()
-      : const OnboardingScreen();
+  final bool isProfileComplete = prefs.getBool('is_profile_complete') ?? false;
+
+  Widget initialScreen;
+  if (token == null) {
+    initialScreen = const OnboardingScreen();
+  } else if (!isProfileComplete) {
+    initialScreen = const ProfileSetupScreen();
+  } else {
+    initialScreen = const MainNavigation();
+  }
 
   runApp(
     ProviderScope(

@@ -71,7 +71,7 @@ class _MainNavigationState extends ConsumerState<MainNavigation> {
 
     if (settings.authorizationStatus == AuthorizationStatus.authorized) {
       String? fcmToken = await messaging.getToken();
-      debugPrint("My FCM Token: $fcmToken");
+
 
       if (fcmToken != null) {
         final prefs = await SharedPreferences.getInstance();
@@ -81,7 +81,7 @@ class _MainNavigationState extends ConsumerState<MainNavigation> {
           try {
             await _apiService.dio.post(
               "/api/sparks/update-fcm-token",
-              data: authToken,
+              data: fcmToken,
               options: Options(contentType: "text/plain"),
             );
             debugPrint("FCM Token synced with Backend ✅");

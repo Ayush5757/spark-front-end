@@ -145,6 +145,7 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
         }
       }
 
+      await prefs.setBool('is_profile_complete', true);
       if (mounted) Navigator.pushReplacementNamed(context, '/home');
     } catch (e) {
       debugPrint("Submit Error: $e");

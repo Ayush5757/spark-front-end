@@ -351,10 +351,10 @@ class _FindPeopleScreenState extends State<FindPeopleScreen> {
                   ),
                   const SizedBox(height: 4),
                   Text(user.bio, style: const TextStyle(color: Colors.white54, fontSize: 13), maxLines: 1, overflow: TextOverflow.ellipsis),
-                  if (user.instaHandle != null) ...[
-                    const SizedBox(height: 6),
-                    Text("${user.instaHandle}", style: TextStyle(color: accentColor, fontSize: 11, fontWeight: FontWeight.bold)),
-                  ],
+                  // if (user.instaHandle != null) ...[
+                  //   const SizedBox(height: 6),
+                  //   Text("${user.instaHandle}", style: TextStyle(color: accentColor, fontSize: 11, fontWeight: FontWeight.bold)),
+                  // ],
                 ],
               ),
             ),

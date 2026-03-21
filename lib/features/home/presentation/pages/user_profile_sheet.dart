@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:spark/features/home/presentation/pages/chat_room_screen.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:geolocator/geolocator.dart'; // Distance ke liye zaroori hai
 import '../../../../core/network/api_service.dart';
@@ -16,11 +18,27 @@ class _UserProfileModalState extends State<UserProfileModal> {
   Map<String, dynamic>? userData;
   bool isLoading = true;
   String distanceStr = "Checking location...";
+  String? myPhone;
 
   @override
   void initState() {
     super.initState();
+    _loadMyPhone();
     _fetchFullProfile();
+  }
+
+  Future<void> _loadMyPhone() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      myPhone = prefs.getString('user_phone');
+    });
+  }
+
+  String _generateRoomId(String otherPhone) {
+    if (myPhone == null) return "temp_room";
+    return myPhone!.compareTo(otherPhone) < 0
+        ? "${myPhone}_$otherPhone"
+        : "${otherPhone}_$myPhone";
   }
 
   Future<void> _fetchFullProfile() async {
@@ -89,6 +107,8 @@ class _UserProfileModalState extends State<UserProfileModal> {
       debugPrint("Error launching Instagram: $e");
     }
   }
+
+
 
   void _showImagePopup(String imageUrl) {
     showGeneralDialog(
@@ -163,6 +183,7 @@ class _UserProfileModalState extends State<UserProfileModal> {
     String avatarUrl = photos.isNotEmpty ? photos[0] : 'https://via.placeholder.com/150';
     String? instaHandle = userData!['instaHandle'];
     String? bio = userData!['bio'];
+    String? otherUserPhone = userData!['phoneNumber'];
 
     return Container(
       height: MediaQuery.of(context).size.height * 0.92,
@@ -226,6 +247,44 @@ class _UserProfileModalState extends State<UserProfileModal> {
                               ],
                             ),
 
+                            const SizedBox(height: 5),
+                            Padding(
+                              padding: const EdgeInsets.only(top: 15),
+                              child: GestureDetector(
+                                onTap: () {
+                                  if (otherUserPhone != null && myPhone != null) {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) => ChatRoomScreen(
+                                          chatRoomId: _generateRoomId(otherUserPhone), // ✅ Frontend generated ID
+                                          userName: userData!['fullName'] ?? "User",
+                                          otherUserPhone: otherUserPhone,
+                                          instagramHandle: userData!['instaHandle'],
+                                        ),
+                                      ),
+                                    );
+                                  } else {
+                                  }
+                                },
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                                  decoration: BoxDecoration(
+                                      color: accentColor,
+                                      borderRadius: BorderRadius.circular(15),
+                                      boxShadow: [BoxShadow(color: accentColor.withOpacity(0.3), blurRadius: 8)]
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: const [
+                                      Icon(Icons.message, color: Colors.black, size: 20), // Gen-Z vibe
+                                      SizedBox(width: 8),
+                                      Text("SAY HI!", style: TextStyle(color: Colors.black, fontWeight: FontWeight.w900, fontSize: 14)),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
                             // const SizedBox(height: 12),
                             // // Message Button
                             // GestureDetector(
@@ -293,7 +352,7 @@ class _UserProfileModalState extends State<UserProfileModal> {
                                 ),
                                 const SizedBox(height: 4),
                                 const Text(
-                                  "Tap to check their vibe on Instagram ↗",
+                                  "🔒✅ For a safer experience, we recommend connecting with users who've shared their Instagram. It’s the easiest way to verify it's a real person! ❤️",
                                   style: TextStyle(color: Colors.white24, fontSize: 11, fontWeight: FontWeight.w400),
                                 ),
                               ],

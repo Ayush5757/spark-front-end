@@ -112,14 +112,14 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         });
       }
     } catch (e) {
-      debugPrint("Notif Load More Error: $e");
+      debugPrint("Notify Load More Error: $e");
       if (mounted) setState(() => isMoreLoading = false);
     }
   }
 
   Future<void> _handleAccept(int matchId) async {
     setState(() {
-      isLoading = true;
+      isRefreshing = true;
     });
     try {
       await _apiService.dio.post("/api/matches/accept/$matchId");
@@ -129,7 +129,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       String errorMsg = e.response?.data?.toString() ?? "Action failed. Let's give it another shot!";
       _showSnackBar("Oops!", errorMsg);
       setState(() {
-        isLoading = false;
+        isRefreshing = false;
       });
     }
   }

@@ -261,12 +261,14 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
         await prefs.setString('token_expiry', expiryDate.toIso8601String());
 
         if (isNewUser) {
+          await prefs.setBool('is_profile_complete', false);
           if (!mounted) return;
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(builder: (context) => const ProfileSetupScreen()),
           );
         } else {
+          await prefs.setBool('is_profile_complete', true);
           if (!mounted) return;
           Navigator.pushReplacement(
             context,

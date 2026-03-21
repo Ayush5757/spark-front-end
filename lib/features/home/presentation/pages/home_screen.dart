@@ -48,7 +48,6 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _loadSavedFilter();
-    _setupFCM();
 
     // Pagination Listener: Jaise hi end pe pahunche, next page fetch karo
     _scrollController.addListener(() {
@@ -95,6 +94,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // --- Location Logic with Auto-Dismiss Popup ---
   Future<bool> _updateLocation() async {
+    setState(() {
+      isLoading = true;
+    });
+
     bool serviceEnabled;
     LocationPermission permission;
 
@@ -209,27 +212,7 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
-  // --- FCM & Notifications ---
-  Future<void> _setupFCM() async {
-    setState(() {
-      isLoading = true;
-    });
-    try {
-      FirebaseMessaging messaging = FirebaseMessaging.instance;
-      await messaging.requestPermission();
 
-      String? token = await messaging.getToken();
-      if (token != null) {
-        await _apiService.dio.post(
-          "/api/sparks/update-fcm-token",
-          data: token,
-          options: Options(contentType: "text/plain"),
-        );
-      }
-    } catch (e) {
-      debugPrint("FCM Error: $e");
-    }
-  }
 
   // --- API CALL: Initial Fetch with Pagination Support ---
   Future<void> _fetchFeed() async {

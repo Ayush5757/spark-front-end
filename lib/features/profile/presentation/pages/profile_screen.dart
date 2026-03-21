@@ -263,7 +263,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 Text(
                   bio,
                   style: const TextStyle(color: Colors.white70, fontSize: 13, height: 1.4),
-                  maxLines: 3,
+                  maxLines: 7,
                   overflow: TextOverflow.ellipsis,
                 ),
               ],
@@ -416,9 +416,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 children: [
                   _buildEditField("Full Name", nameCtrl),
                   const SizedBox(height: 15),
-                  _buildEditField("Bio", bioCtrl, lines: 3),
+                  _buildEditField("Bio", bioCtrl, lines: 7, charLimit: 150),
                   const SizedBox(height: 15),
-                  _buildEditField("Instagram Handle", instaCtrl, pref: "@"),
+                  _buildEditField("Instagram Handle", instaCtrl, pref: ""),
                   const SizedBox(height: 25),
                   SizedBox(
                     width: double.infinity,
@@ -446,9 +446,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildEditField(String label, TextEditingController ctrl, {int lines = 1, String? pref}) {
+  Widget _buildEditField(String label, TextEditingController ctrl, {int lines = 1, String? pref, int? charLimit}) {
     return TextField(
       controller: ctrl, maxLines: lines, style: const TextStyle(color: Colors.white),
+      maxLength: charLimit, // Ye raha tumhara character limit
       decoration: InputDecoration(
         labelText: label, labelStyle: TextStyle(color: accentColor.withOpacity(0.6)), prefixText: pref,
         enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: borderColor), borderRadius: BorderRadius.circular(15)),
