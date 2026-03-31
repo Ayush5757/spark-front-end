@@ -112,6 +112,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  Future<void> _deleteImage(int index) async {
+    setState(() => isUploading = true);
+    try {
+      final response = await _apiService.dio.post(
+        "/api/profile/delete-photo",
+        queryParameters: {"index": index},
+      );
+
+      if (response.statusCode == 200) {
+        _fetchProfileData(); // Refresh data
+        _showSnackBar("Moment Deleted! ");
+      }
+    } catch (e) {
+      _showSnackBar("Failed to delete", isError: true);
+    } finally {
+      if (mounted) setState(() => isUploading = false);
+    }
+  }
+
   Future<void> _toggleVisibility() async {
     setState(() => isVisibilityLoading = true);
     try {
@@ -372,12 +391,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
         mainAxisSize: MainAxisSize.min,
         children: [
           const SizedBox(height: 15),
-          if (hasImage)
+          if (hasImage) ...[
             ListTile(
               leading: Icon(Icons.fullscreen, color: accentColor),
               title: const Text("View Moment", style: TextStyle(color: Colors.white)),
               onTap: () { Navigator.pop(context); _openImagePreview(profileImages[index]); },
             ),
+            // ✅ DELETE OPTION ADDED HERE
+            ListTile(
+              leading: Icon(Icons.delete_outline_rounded, color: dangerRed),
+              title: Text("Delete Moment", style: TextStyle(color: dangerRed)),
+              onTap: () {
+                Navigator.pop(context);
+                _deleteImage(index); // Delete function call
+              },
+            ),
+          ],
           ListTile(
             leading: Icon(hasImage ? Icons.refresh : Icons.upload, color: accentColor),
             title: Text(hasImage ? "Change Photo" : "Upload Photo", style: const TextStyle(color: Colors.white)),
@@ -483,7 +512,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   void _showSnackBar(String msg, {bool isError = false}) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg), backgroundColor: isError ? dangerRed : accentColor, behavior: SnackBarBehavior.floating));
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg,  style: const TextStyle(color: Colors.white)), backgroundColor: isError ? dangerRed : accentColor, behavior: SnackBarBehavior.floating));
   }
 
   Widget _buildLogoutButton(BuildContext context) {

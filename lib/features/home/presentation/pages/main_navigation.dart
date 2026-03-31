@@ -102,7 +102,8 @@ class _MainNavigationState extends ConsumerState<MainNavigation> {
 
     stompClient = StompClient(
       config: StompConfig(
-        url: 'wss://sparkbackend-production.up.railway.app/ws-spark/websocket',
+        // url: 'wss://sparkbackend-production.up.railway.app/ws-spark/websocket',
+        url: 'ws://192.168.29.114:8080/ws-spark/websocket',
         onConnect: (frame) {
           debugPrint("🌍 Global Socket Connected!");
           stompClient?.subscribe(
@@ -140,8 +141,20 @@ class _MainNavigationState extends ConsumerState<MainNavigation> {
             },
           );
         },
-        stompConnectHeaders: {'Authorization': 'Bearer $token'},
-        webSocketConnectHeaders: {'Authorization': 'Bearer $token'},
+        reconnectDelay: const Duration(seconds: 5),
+
+        stompConnectHeaders: {
+          'Authorization': 'Bearer $token',
+          'connection-type': 'GLOBAL', // Backend ke liye pehchaan
+          'heart-beat': '10000,10000',
+        },
+        webSocketConnectHeaders: {
+          'Authorization': 'Bearer $token',
+          'connection-type': 'GLOBAL',
+        },
+
+        onWebSocketError: (e) => debugPrint("❌ Global Socket Error: $e"),
+        onDisconnect: (frame) => debugPrint("⚠️ Global Socket Disconnected!"),
       ),
     );
     stompClient?.activate();

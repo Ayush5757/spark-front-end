@@ -23,7 +23,7 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
 
   int _currentPage = 0;
   bool _isLoading = false;
-  bool _isUploadingImage = false; // Image upload status track karne ke liye
+  bool _isUploadingImage = false;
 
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _instaController = TextEditingController();
@@ -32,19 +32,17 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
   final List<String?> _localPhotos = List.generate(6, (index) => null);
   final List<String> _uploadedUrls = [];
 
-  // --- Real-time Validation Logic ---
-  // Ye function check karega ki current page ka data valid hai ya nahi
   bool _isCurrentStepValid() {
     switch (_currentPage) {
-      case 0: // Name
+      case 0:
         return _nameController.text.trim().isNotEmpty;
-      case 1: // Gender
+      case 1:
         return _selectedGender.isNotEmpty;
-      case 2: // Photos
-        return _uploadedUrls.isNotEmpty && !_isUploadingImage;
-      case 3: // Instagram (No '@' required now)
-        return _instaController.text.trim().isNotEmpty;
-      case 4: // Final Step
+      case 2:
+        return !_isUploadingImage;
+      case 3:
+        return true;
+      case 4:
         return true;
       default:
         return false;
@@ -52,6 +50,9 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
   }
 
   void _nextStep() {
+    // Keypad band karne ke liye
+    FocusScope.of(context).unfocus();
+
     if (_isCurrentStepValid()) {
       _pageController.nextPage(
         duration: const Duration(milliseconds: 400),
@@ -69,7 +70,7 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
     if (image != null) {
       setState(() {
         _localPhotos[index] = image.path;
-        _isUploadingImage = true; // Upload shuru hua
+        _isUploadingImage = true;
       });
       await _uploadPhoto(image.path, index);
     }
@@ -93,7 +94,7 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
       if (response.statusCode == 200) {
         setState(() {
           _uploadedUrls.add(response.data.toString());
-          _isUploadingImage = false; // Upload khatam
+          _isUploadingImage = false;
         });
         debugPrint("Photo Uploaded: ${response.data}");
       }
@@ -105,6 +106,7 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
   }
 
   Future<void> _handleFinalSubmit() async {
+    FocusScope.of(context).unfocus(); // Final submit par bhi keyboard band
     setState(() => _isLoading = true);
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -165,6 +167,8 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.scaffoldBg,
+      // Keypad khulne par layout resize ho taaki input visible rahe
+      resizeToAvoidBottomInset: true,
       body: SafeArea(
         child: _isLoading
             ? const Center(child: CircularProgressIndicator())
@@ -188,14 +192,13 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
                     child: TextField(
                       controller: _nameController,
                       textAlign: TextAlign.center,
-                      onChanged: (val) => setState(() {}), // Button refresh ke liye
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 20,
-                      ),
+                      textCapitalization: TextCapitalization.words,
+                      onChanged: (val) => setState(() {}),
+                      style: const TextStyle(color: Colors.white, fontSize: 20),
                       decoration: const InputDecoration(
                         hintText: "Enter full name",
                         hintStyle: TextStyle(color: Colors.white24),
+                        enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.white24)),
                       ),
                     ),
                     onNext: _nextStep,
@@ -209,9 +212,7 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
                       children: ["MALE", "FEMALE", "OTHER"]
                           .map(
                             (g) => Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 5,
-                          ),
+                          padding: const EdgeInsets.symmetric(horizontal: 5),
                           child: ChoiceChip(
                             label: Text(g),
                             selected: _selectedGender == g,
@@ -220,8 +221,7 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
                             },
                           ),
                         ),
-                      )
-                          .toList(),
+                      ).toList(),
                     ),
                     onNext: _nextStep,
                     isBtnEnabled: _isCurrentStepValid(),
@@ -233,8 +233,8 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
                       children: [
                         GridView.builder(
                           shrinkWrap: true,
-                          gridDelegate:
-                          const SliverGridDelegateWithFixedCrossAxisCount(
+                          physics: const NeverScrollableScrollPhysics(),
+                          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                             crossAxisCount: 3,
                             crossAxisSpacing: 10,
                             mainAxisSpacing: 10,
@@ -248,12 +248,9 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
                                 borderRadius: BorderRadius.circular(12),
                                 image: _localPhotos[i] != null
                                     ? DecorationImage(
-                                  image: FileImage(
-                                    File(_localPhotos[i]!),
-                                  ),
+                                  image: FileImage(File(_localPhotos[i]!)),
                                   fit: BoxFit.cover,
-                                )
-                                    : null,
+                                ) : null,
                               ),
                               child: _localPhotos[i] == null
                                   ? const Icon(Icons.add, color: Colors.white)
@@ -265,7 +262,10 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
                           const Padding(
                             padding: EdgeInsets.only(top: 10),
                             child: Text("Uploading...", style: TextStyle(color: Colors.blue, fontSize: 12)),
-                          )
+                          ),
+                        const SizedBox(height: 20),
+                        const Text("(Optional: You can skip this step)",
+                            style: TextStyle(color: Colors.white38, fontSize: 12)),
                       ],
                     ),
                     onNext: _nextStep,
@@ -274,21 +274,23 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
                   // STEP 4: Instagram
                   _buildStepLayout(
                     title: "What's your Instagram?",
-                    child: TextField(
-                      controller: _instaController,
-                      textAlign: TextAlign.center,
-                      onChanged: (val) => setState(() {}),
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 20,
-                      ),
-                      decoration: const InputDecoration(
-                        hintText: "username (e.g. spark_user)",
-                        hintStyle: TextStyle(color: Colors.white24),
-                        enabledBorder: UnderlineInputBorder(
-                          borderSide: BorderSide(color: Colors.white24),
+                    child: Column(
+                      children: [
+                        TextField(
+                          controller: _instaController,
+                          textAlign: TextAlign.center,
+                          onChanged: (val) => setState(() {}),
+                          style: const TextStyle(color: Colors.white, fontSize: 20),
+                          decoration: const InputDecoration(
+                            hintText: "username (optional)",
+                            hintStyle: TextStyle(color: Colors.white24),
+                            enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.white24)),
+                          ),
                         ),
-                      ),
+                        const SizedBox(height: 15),
+                        const Text("You can add this later in settings",
+                            style: TextStyle(color: Colors.white38, fontSize: 12)),
+                      ],
                     ),
                     onNext: _nextStep,
                     isBtnEnabled: _isCurrentStepValid(),
@@ -317,16 +319,19 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
     required String title,
     required Widget child,
     required VoidCallback onNext,
-    required bool isBtnEnabled, // New parameter
+    required bool isBtnEnabled,
     String buttonText = "Next",
   }) {
-    return Padding(
-      padding: const EdgeInsets.all(30.0),
+    // SingleChildScrollView add kiya taaki keypad aane par overflow na ho
+    return SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(horizontal: 30.0, vertical: 50.0),
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Text(
             title,
+            textAlign: TextAlign.center,
             style: GoogleFonts.plusJakartaSans(
               fontSize: 26,
               fontWeight: FontWeight.bold,
@@ -340,14 +345,14 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
             width: double.infinity,
             height: 55,
             child: ElevatedButton(
-              // Agar isBtnEnabled false hai toh onPressed null rahega (Auto disable)
               onPressed: isBtnEnabled ? onNext : null,
               style: ElevatedButton.styleFrom(
                 backgroundColor: isBtnEnabled ? AppColors.primaryBlue : Colors.grey.withOpacity(0.3),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
               ),
               child: Text(
                 buttonText,
-                style: TextStyle(color: isBtnEnabled ? Colors.white : Colors.white38),
+                style: TextStyle(color: isBtnEnabled ? Colors.white : Colors.white38, fontWeight: FontWeight.bold),
               ),
             ),
           ),

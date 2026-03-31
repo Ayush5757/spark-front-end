@@ -4,7 +4,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 class ApiService {
   final Dio _dio = Dio(
     BaseOptions(
-      baseUrl: "https://sparkbackend-production.up.railway.app",
+      // baseUrl: "https://sparkbackend-production.up.railway.app",
+      baseUrl: "http://192.168.29.114:8080",
       connectTimeout: const Duration(seconds: 30),
       receiveTimeout: const Duration(seconds: 30),
     ),

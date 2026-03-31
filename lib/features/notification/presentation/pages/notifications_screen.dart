@@ -399,7 +399,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   void _showSnackBar(String title, String msg) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text("$title: $msg"),
+        content: Text("$title: $msg", style: const TextStyle(color: Colors.white)),
         backgroundColor: const Color(0xFF1C2128),
         behavior: SnackBarBehavior.floating,
       ),

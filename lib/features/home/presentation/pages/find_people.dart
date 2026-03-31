@@ -5,6 +5,7 @@ import '../../../../core/network/api_service.dart';
 import 'user_profile_sheet.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'online_now_screen.dart';
 
 class FindPeopleScreen extends StatefulWidget {
   const FindPeopleScreen({super.key});
@@ -164,11 +165,68 @@ class _FindPeopleScreenState extends State<FindPeopleScreen> {
         elevation: 0,
         title: const Text("Radar", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 28, color: Colors.white)),
         actions: [
+          // Naya Online Status Button
+          InkWell(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const OnlineNowScreen()),
+              );
+            },
+            borderRadius: BorderRadius.circular(20),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Green Dot with Glow (Pulsing jaisa effect)
+                  Container(
+                    width: 8,
+                    height: 8,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF22C55E),
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF22C55E).withOpacity(0.5),
+                          blurRadius: 4,
+                          spreadRadius: 2,
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  // "Online" Text in Green
+                  const Text(
+                    "Online users",
+                    style: TextStyle(
+                      color: Color(0xFF22C55E),
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // Refreshing Loader
           if (isRefreshing)
             const Padding(
-              padding: EdgeInsets.only(right: 20),
-              child: Center(child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF2DD4BF)))),
+              padding: EdgeInsets.only(right: 15),
+              child: Center(
+                child: SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Color(0xFF2DD4BF),
+                  ),
+                ),
+              ),
             ),
+          const SizedBox(width: 5),
         ],
       ),
       body: Column(

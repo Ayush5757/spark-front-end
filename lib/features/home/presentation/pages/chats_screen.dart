@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:cached_network_image/cached_network_image.dart'; // ✅ Added
+import 'package:spark/features/home/presentation/pages/user_profile_sheet.dart';
 import '../../../../core/network/api_service.dart';
 import '../../../chat/data/chat_provider.dart';
 import 'chat_room_screen.dart';
@@ -251,9 +252,12 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> {
 
   Widget _buildChatItem(dynamic chat) {
     bool hasUnread = (chat['unreadCount'] ?? 0) > 0;
+    // Backend se 'otherUserId' ya 'id' jo bhi key aa rahi hai use convert karein
+    final String otherUserId = (chat['otherUserId'] ?? "").toString();
 
     return ListTile(
       onTap: () async {
+        // Pura tile click karne par Chat Room khulega
         await Navigator.push(
           context,
           MaterialPageRoute(
@@ -265,44 +269,56 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> {
             ),
           ),
         );
-        _fetchInitialChats(silent: true); // Back aane par silently update
+        _fetchInitialChats(silent: true);
       },
-      leading: Stack(
-        children: [
-          // ✅ Optimized with CachedNetworkImage
-          CachedNetworkImage(
-            imageUrl: chat['profilePic'] ?? "",
-            imageBuilder: (context, imageProvider) => CircleAvatar(
-              radius: 30,
-              backgroundImage: imageProvider,
-            ),
-            placeholder: (context, url) => Container(
-              width: 60, height: 60,
-              decoration: const BoxDecoration(color: Color(0xFF1C2128), shape: BoxShape.circle),
-              child: const Center(child: CircularProgressIndicator(strokeWidth: 1, color: Color(0xFF3B82F6))),
-            ),
-            errorWidget: (context, url, error) => CircleAvatar(
-              radius: 30,
-              backgroundImage: NetworkImage(
-                "https://api.dicebear.com/7.x/avataaars/svg?seed=${chat['userName']}",
+      leading: GestureDetector(
+        // ✅ Profile Pic click logic
+        onTap: () {
+          if (otherUserId.isNotEmpty) {
+            showModalBottomSheet(
+              context: context,
+              isScrollControlled: true,
+              backgroundColor: Colors.transparent,
+              builder: (context) => UserProfileModal(userId: otherUserId),
+            );
+          }
+        },
+        child: Stack(
+          children: [
+            CachedNetworkImage(
+              imageUrl: chat['profilePic'] ?? "",
+              imageBuilder: (context, imageProvider) => CircleAvatar(
+                radius: 30,
+                backgroundImage: imageProvider,
               ),
-            ),
-          ),
-          if (chat['isOnline'] == true)
-            Positioned(
-              bottom: 2,
-              right: 2,
-              child: Container(
-                width: 12,
-                height: 12,
-                decoration: BoxDecoration(
-                  color: Colors.green,
-                  shape: BoxShape.circle,
-                  border: Border.all(color: Colors.black, width: 2),
+              placeholder: (context, url) => Container(
+                width: 60, height: 60,
+                decoration: const BoxDecoration(color: Color(0xFF1C2128), shape: BoxShape.circle),
+                child: const Center(child: CircularProgressIndicator(strokeWidth: 1, color: Color(0xFF3B82F6))),
+              ),
+              errorWidget: (context, url, error) => CircleAvatar(
+                radius: 30,
+                backgroundImage: NetworkImage(
+                  "https://api.dicebear.com/7.x/avataaars/svg?seed=${chat['userName']}",
                 ),
               ),
             ),
-        ],
+            if (chat['isOnline'] == true)
+              Positioned(
+                bottom: 2,
+                right: 2,
+                child: Container(
+                  width: 12,
+                  height: 12,
+                  decoration: BoxDecoration(
+                    color: Colors.green,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.black, width: 2),
+                  ),
+                ),
+              ),
+          ],
+        ),
       ),
       title: Text(
         chat['userName'] ?? "User",

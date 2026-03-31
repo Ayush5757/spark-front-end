@@ -1,9 +1,11 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:stomp_dart_client/stomp_dart_client.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../../core/network/api_service.dart';
+import 'package:dio/dio.dart' as dio_pkg;
 
 class ChatRoomScreen extends StatefulWidget {
   final String chatRoomId;
@@ -24,6 +26,7 @@ class ChatRoomScreen extends StatefulWidget {
 }
 
 class _ChatRoomScreenState extends State<ChatRoomScreen> {
+  final ImagePicker _picker = ImagePicker();
   final ApiService _apiService = ApiService();
   final TextEditingController _controller = TextEditingController();
   final ScrollController _scrollController = ScrollController();
@@ -65,24 +68,40 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
   void _connectWebSocket(String token) {
     stompClient = StompClient(
       config: StompConfig(
-        url: 'wss://sparkbackend-production.up.railway.app/ws-spark/websocket',
+        url: 'ws://192.168.29.114:8080/ws-spark/websocket',
         onConnect: (frame) {
           debugPrint("✅ Connected to WebSocket");
           stompClient?.subscribe(
             destination: '/topic/chat/${widget.chatRoomId}',
             callback: (frame) {
               if (frame.body != null) {
-                final newMsg = jsonDecode(frame.body!);
+                final data = jsonDecode(frame.body!);
 
+                if (data['type'] == 'SEEN_EVENT') {
+                  if (data['seenBy'].toString() != myPhone) {
+                    setState(() {
+                      for (var msg in messages) {
+                        if (msg['senderPhone'].toString() == myPhone) {
+                          msg['seen'] = true;
+                        }
+                      }
+                    });
+                  }
+                  return;
+                }
+
+                final newMsg = data;
                 setState(() {
-                  messages.removeWhere(
-                        (m) =>
-                    m['content'] == newMsg['content'] &&
-                        m['senderPhone'] == newMsg['senderPhone'] &&
-                        m['timestamp'] is int,
-                  );
-
-                  messages.insert(0, newMsg);
+                  int index = messages.indexWhere((m) =>
+                  (m['id'] != null && m['id'] == newMsg['id']) ||
+                      (m['id'] == null &&
+                          m['content'] == newMsg['content'] &&
+                          m['senderPhone'] == newMsg['senderPhone']));
+                  if (index != -1) {
+                    messages[index] = newMsg;
+                  } else {
+                    messages.insert(0, newMsg);
+                  }
                 });
 
                 if (newMsg['senderPhone'].toString() != myPhone) {
@@ -92,8 +111,16 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
             },
           );
         },
-        stompConnectHeaders: {'Authorization': 'Bearer $token'},
-        webSocketConnectHeaders: {'Authorization': 'Bearer $token'},
+        reconnectDelay: const Duration(seconds: 5),
+        stompConnectHeaders: {
+          'Authorization': 'Bearer $token',
+          'connection-type': 'CHAT_ROOM',
+          'heart-beat': '10000,10000',
+        },
+        webSocketConnectHeaders: {
+          'Authorization': 'Bearer $token',
+          'connection-type': 'CHAT_ROOM',
+        },
         onWebSocketError: (error) => debugPrint("❌ Socket Error: $error"),
         onStompError: (frame) => debugPrint("❌ Stomp Error: ${frame.body}"),
       ),
@@ -188,6 +215,79 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
     }
   }
 
+  Future<void> _pickAndSendImage() async {
+    final XFile? image =
+    await _picker.pickImage(source: ImageSource.gallery, imageQuality: 70);
+
+    if (image != null) {
+      try {
+        String fileName = image.path.split('/').last;
+        dio_pkg.FormData formData = dio_pkg.FormData.fromMap({
+          "file": await dio_pkg.MultipartFile.fromFile(image.path,
+              filename: fileName),
+        });
+
+        var response =
+        await _apiService.dio.post("/api/chat/upload", data: formData);
+        String imageUrl = response.data['url'];
+
+        _sendImageMessage(imageUrl);
+      } catch (e) {
+        print("Upload error: $e");
+      }
+    }
+  }
+
+  void _sendImageMessage(String imageUrl) async {
+    final localMsg = {
+      'chatRoomId': widget.chatRoomId,
+      'receiverPhone': widget.otherUserPhone,
+      'senderPhone': myPhone,
+      'content': imageUrl,
+      'type': 'IMAGE',
+      'timestamp': DateTime.now().millisecondsSinceEpoch,
+      'seen': false,
+    };
+
+    setState(() {
+      messages.insert(0, localMsg);
+    });
+
+    await _apiService.dio.post("/api/chat/send", data: {
+      'chatRoomId': widget.chatRoomId,
+      'receiverPhone': widget.otherUserPhone,
+      'content': imageUrl,
+      'type': 'IMAGE',
+    });
+  }
+
+  void _showFullScreenImage(BuildContext context, String imageUrl) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => Scaffold(
+          backgroundColor: Colors.black,
+          appBar: AppBar(
+            backgroundColor: Colors.black,
+            iconTheme: const IconThemeData(color: Colors.white),
+          ),
+          body: Center(
+            child: InteractiveViewer(
+              panEnabled: true,
+              boundaryMargin: const EdgeInsets.all(20),
+              minScale: 0.5,
+              maxScale: 4,
+              child: Image.network(
+                imageUrl,
+                fit: BoxFit.contain,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -203,7 +303,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              widget.userName ?? "User", // ✅ Safe handling of Null
+              widget.userName ?? "User",
               style: const TextStyle(color: Colors.white, fontSize: 16),
             ),
             const Text(
@@ -213,8 +313,8 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
           ],
         ),
         actions: [
-          // ✅ Safe Instagram handling
-          if (widget.instagramHandle != null && widget.instagramHandle!.isNotEmpty)
+          if (widget.instagramHandle != null &&
+              widget.instagramHandle!.isNotEmpty)
             IconButton(
               icon: const Icon(
                 Icons.camera_alt_outlined,
@@ -249,7 +349,6 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
                   );
                 }
                 final msg = messages[index];
-                // ✅ toString() ke saath null check
                 final bool isMine =
                     (msg['senderPhone']?.toString() ?? "") == myPhone;
                 return _buildMessageBubble(msg, isMine);
@@ -263,23 +362,52 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
   }
 
   Widget _buildMessageBubble(dynamic msg, bool isMine) {
+    bool isSeen = msg['seen'] ?? false;
+    bool isImage = msg['type'] == 'IMAGE';
+
     return Align(
       alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
         margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
           color: isMine ? const Color(0xFF3B82F6) : const Color(0xFF1C2128),
-          borderRadius: BorderRadius.only(
-            topLeft: const Radius.circular(16),
-            topRight: const Radius.circular(16),
-            bottomLeft: Radius.circular(isMine ? 16 : 4),
-            bottomRight: Radius.circular(isMine ? 4 : 16),
-          ),
+          borderRadius: BorderRadius.circular(12),
         ),
-        child: Text(
-          msg['content']?.toString() ?? "", // ✅ Null safety for content
-          style: const TextStyle(color: Colors.white, fontSize: 15),
+        constraints:
+        BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.7),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            if (isImage)
+              GestureDetector(
+                onTap: () => _showFullScreenImage(context, msg['content']),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: Image.network(
+                    msg['content'],
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) =>
+                    const Icon(Icons.broken_image, color: Colors.white),
+                  ),
+                ),
+              )
+            else
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                child: Text(
+                  msg['content']?.toString() ?? "",
+                  style: const TextStyle(color: Colors.white, fontSize: 15),
+                ),
+              ),
+            const SizedBox(height: 2),
+            if (isMine)
+              Icon(
+                isSeen ? Icons.done_all : Icons.done,
+                size: 14,
+                color: isSeen ? Colors.greenAccent : Colors.white70,
+              ),
+          ],
         ),
       ),
     );
@@ -296,6 +424,10 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
       color: Colors.black,
       child: Row(
         children: [
+          IconButton(
+            icon: const Icon(Icons.image, color: Color(0xFF3B82F6)),
+            onPressed: _pickAndSendImage,
+          ),
           Expanded(
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 16),
